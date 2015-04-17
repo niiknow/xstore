@@ -1,0 +1,25 @@
+{
+  "name": "xstore",
+  "main": "index.js",
+  "repo": "niiknow/xstore",
+  "description": "Cross domain storage",
+  "version": "1.0.0",
+  "keywords": [
+    "modal",
+    "web"
+  ],
+  "dependencies": {
+    "marcuswestin/store.js": "*",
+    "kaerus-component/promise": "*"
+  },
+  "development": {
+    "yields/coverage": "*",
+    "component/jquery": "*",
+    "component/assert": "*",
+    "ianstormtaylor/trigger-event": "*",
+    "jkroso/equals": "*",
+    "ianstormtaylor/sinon": "duo",
+    "timoxley/next-tick": "*",
+    "yields/gravy": "*"
+  }
+}
