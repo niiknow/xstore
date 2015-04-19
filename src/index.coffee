@@ -264,6 +264,9 @@
       proxyPage = options.url or proxyPage
       if options.dntIgnore
         dnt = false
+      
+      if !store.enabled 
+        dnt = true
 
       if (win.location.protocol == 'https')
         proxyPage = proxyPage.replace('http:', 'https:')

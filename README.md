@@ -8,7 +8,7 @@ No back-end is required.  Out of the box, xstore can be use by simply including 
 
 Example:
 ```
-<!-- you can even use the xstore.min.js directly -->
+<!-- you can even use the xstore.min.js directly from github -->
 <script src="//niknow.github.io/xstore/xstore.min.js"></script>
 <script>
   xstore.init({dntIgnore: true}); // initialize xstore and ignore doNotTrack setting
