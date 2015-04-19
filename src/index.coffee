@@ -1,7 +1,6 @@
 ((win) ->
   doc = win.document
   load = require('load-iframe')
-  proxy = require('./proxy.coffee')
 
   # Setting - The base domain of the proxy
   proxyPage = 'http://niiknow.github.io/xstore/xstore.html'
@@ -13,6 +12,13 @@
   cacheBust = 0
   hash = undefined
   delay = 333
+
+  #cross browser event handler names
+  onMessage = (fn) ->
+    if doc.addEventListener
+      doc.addEventListener "message", fn
+    else
+      doc.attachEvent "onmessage", fn
 
   ###*
   # defer/promise class
@@ -58,13 +64,79 @@
         throw new Error(e)
       return
   
+  class myproxy
+    # Post message not supported
+    delay: 333
+    hash: win.location.hash
+    init: ->
+      self = @
+      # If postMessage not supported set up polling for hash change
+      if usePostMessage
+        onMessage(self.handleMessage)
+      else
+        # Poll for hash changes
+        setInterval (->
+          newhash = win.location.hash
+          if newhash != hash
+            # Set new hash
+            hash = newhash
+            self.handleMessage data: JSON.parse(newhash.substr(1))
+          return
+        ), self.delay
+    handleMessage: (evt) ->
+      d = e.data
 
-  #cross browser event handler names
-  onMessage = (fn) ->
-    if doc.addEventListener
-      doc.addEventListener "message", fn
-    else
-      doc.attachEvent "onmessage", fn
+      if typeof d is "string"
+        #IE will "toString()" the array, this reverses that action
+        if /^xstore-/.test d
+          d = d.split ","
+        #this browser must json encode postmessages
+        else if jsonEncode
+          try d = JSON.parse d
+          catch
+            return
+
+      # xstore always pass an array
+      unless d instanceof Array
+        return
+      # [cacheBust, messageid, method, key, value]
+
+      #return unless lead by an xstore id
+      id = d[1]
+      unless /^xstore-/.test id
+        return
+
+      self = @    
+      key = d[3] or 'xstore'
+      method = d[2]
+      cacheBust = 0
+
+      # If the key exists in storage
+      if method == 'get'
+        # Get storage object - stringify and send back
+        d[4] = store.get(key)
+      else if method == 'set'
+        store.set(key, d[4])
+      else if method == 'remove'
+        store.remove(key)
+      else if method == 'clear'
+        store.clear()
+      else
+        d[2] = 'error-' + method 
+
+      if usePostMessage
+        # Post the return message back as JSON
+        evt.source.postMessage JSON.stringify(d), evt.origin
+      else
+        # Cache bust messages with the same info
+        cacheBust += 1
+        myCacheBust = +new Date + cacheBust
+        d[0] = myCacheBust
+
+        # postMessage not available so set top location hash - Replace the hash with nothing then add new
+        hash = '#' + JSON.stringify(d)
+        win.location = win.location.href.replace(globals.location.hash, '') + hash
+      return
 
   # Helper to return a random string to serve as a simple hash
   randomHash = ->
@@ -168,7 +240,7 @@
 
     @init: (options) ->
       if (options.isProxy)
-        proxy.init
+        (new myproxy()).init()
         return
 
       proxyPage = options.url || proxyPage
@@ -196,6 +268,7 @@
           onMessage(handleMessageEvent)
 
 
-  modules.export = xstore
+  win.xstore = xstore
+  module.export = xstore
 
 ) window
