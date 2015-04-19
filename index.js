@@ -111,10 +111,10 @@
     hash = void 0;
     delay = 333;
     onMessage = function(fn) {
-      if (doc.addEventListener) {
-        return doc.addEventListener("message", fn, false);
+      if (win.addEventListener) {
+        return win.addEventListener("message", fn, false);
       } else {
-        return doc.attachEvent("onmessage", fn);
+        return win.attachEvent("onmessage", fn);
       }
     };
 

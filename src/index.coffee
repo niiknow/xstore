@@ -17,10 +17,10 @@
 
   #cross browser event handler names
   onMessage = (fn) ->
-    if doc.addEventListener
-      doc.addEventListener "message", fn, false
+    if win.addEventListener
+      win.addEventListener "message", fn, false
     else
-      doc.attachEvent "onmessage", fn
+      win.attachEvent "onmessage", fn
 
   ###*
   # defer/promise class
