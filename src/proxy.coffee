@@ -13,6 +13,21 @@ class myproxy
   # Post message not supported
   delay: 333
   hash: win.location.hash
+  init: ->
+    self = @
+    # If postMessage not supported set up polling for hash change
+    if usePostMessage
+      onMessage(self.handleMessage)
+    else
+      # Poll for hash changes
+      setInterval (->
+        newhash = win.location.hash
+        if newhash != hash
+          # Set new hash
+          hash = newhash
+          self.handleMessage data: JSON.parse(newhash.substr(1))
+        return
+      ), self.delay
   handleMessage: (evt) ->
     d = e.data
 
@@ -52,7 +67,7 @@ class myproxy
     else if method == 'clear'
       store.clear()
     else
-      d[2] = 'error: ' + method 
+      d[2] = 'error-' + method 
 
     if usePostMessage
       # Post the return message back as JSON
@@ -69,19 +84,5 @@ class myproxy
     return
 
   proxy = new myproxy()
-
-  # If postMessage not supported set up polling for hash change
-  if usePostMessage
-    onMessage(proxy.handleMessage)
-  else
-    # Poll for hash changes
-    setInterval (->
-      newhash = win.location.hash
-      if newhash != hash
-        # Set new hash
-        hash = newhash
-        proxy.handleMessage data: JSON.parse(newhash.substr(1))
-      return
-    ), self.delay
 
 modules.export = proxy

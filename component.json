@@ -9,8 +9,8 @@
     "web"
   ],
   "dependencies": {
-    "marcuswestin/store.js": "*",
-    "kaerus-component/promise": "*"
+    "segmentio/load-iframe": "*",
+    "marcuswestin/store.js": "*"
   },
   "development": {
     "yields/coverage": "*",

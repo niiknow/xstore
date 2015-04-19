@@ -93,300 +93,692 @@
 1: [function(require, module, exports) {
 (function() {
   (function(win) {
-    var $baseCls, $css, $doc, $tpl, $win, Emitter, createModal, hasCls, injectStyle, modal, result;
-    Emitter = require('emitter');
-    $tpl = require('./template.html');
-    $css = require('./index.css');
-    $win = win;
-    $doc = $win.document;
-    $baseCls = 'gmodal';
-    injectStyle = function(id, data) {
-      var el;
-      el = $doc.getElementById(id);
-      if (!el) {
-        el = $doc.createElement('style');
-        el.type = 'text/css';
-        el.appendChild($doc.createTextNode(data));
-        return ($doc.head || $doc.getElementsByTagName('head')[0]).appendChild(el);
-      }
-    };
-    hasCls = function(el, cls) {
-      var i, k, len, ref, v;
-      ref = cls.split(' ');
-      for (k = i = 0, len = ref.length; i < len; k = ++i) {
-        v = ref[k];
-        if ((' ' + el.className).indexOf(' ' + v) >= 0) {
-          return true;
+    var Deferred, cacheBust, createPromise, deferredObject, delay, doc, handleMessageEvent, hash, iframe, load, onMessage, proxy, proxyPage, proxyWin, randomHash, storageKey, usePostMessage, xstore;
+    doc = win.document;
+    load = require('load-iframe');
+    proxy = require('./proxy.coffee');
+    proxyPage = 'http://niiknow.github.io/xstore/xstore.html';
+    storageKey = 'xstore';
+    deferredObject = {};
+    iframe = void 0;
+    proxyWin = void 0;
+    usePostMessage = win.postMessage != null;
+    cacheBust = 0;
+    hash = void 0;
+    delay = 333;
+
+    /**
+     * defer/promise class
+    #
+     */
+    Deferred = (function() {
+      function Deferred() {}
+
+      Deferred.prototype.callbacks = [];
+
+      Deferred.prototype.errorbacks = [];
+
+      Deferred.prototype.promise = function(func) {
+        var self;
+        self = this;
+        if (func) {
+          func(self.resolve, self.reject);
         }
-      }
-      return false;
-    };
-    createModal = function() {
-      var el, myKeypress;
-      el = $doc.getElementById("gmodal");
-      if (!el) {
-        injectStyle('gmodal-css', $css);
-        el = $doc.createElement('div');
-        el.id = 'gmodal';
-        el.onclick = function(evt) {
-          evt = evt || $win.event;
-          evt.target = evt.target || evt.srcElement;
-          if (hasCls(evt.target, 'gmodal-wrap gmodal-close') || evt.target === el) {
-            gmodal.emit('click', evt);
-          }
-          return false;
-        };
-        myKeypress = function(evt) {
-          evt = evt || $win.event;
-          evt.target = evt.target || evt.srcElement;
-          if (hasCls(evt.target, 'gmodal-wrap') || evt.target === el || evt.target === $doc || evt.target === $doc.body) {
-            if ((evt.which || evt.keyCode) === 27) {
-              gmodal.emit('esc', evt);
+        return self;
+      };
+
+      Deferred.prototype.then = function(callback, errorback) {
+        var self;
+        self = this;
+        if (errorback) {
+          self.errorbacks[self.callbacks.length] = errorback;
+        }
+        self.callbacks.push(callback);
+        return self;
+      };
+
+      Deferred.prototype.resolve = function(data) {
+        var e, i, l, self;
+        self = this;
+        i = 0;
+        l = self.callbacks.length;
+        i;
+        while (i < l) {
+          try {
+            data = self.callbacks[i](data);
+          } catch (_error) {
+            e = _error;
+            if (self.errorbacks[i]) {
+              self.errorbacks[i](e);
+            } else {
+              throw new Error(e);
             }
           }
-          return false;
-        };
-        el.onkeypress = myKeypress;
-        $doc.onkeypress = myKeypress;
-        el.ontap = function(evt) {
-          evt = evt || $win.event;
-          evt.target = evt.target || evt.srcElement;
-          if (hasCls(evt.target, 'gmodal-wrap gmodal-close') || evt.target === el) {
-            gmodal.emit('tap', evt);
-          }
-          return false;
-        };
-        el.innerHTML = $tpl;
-        $doc.getElementsByTagName('body')[0].appendChild(el);
+          i += 1;
+        }
+        return self;
+      };
+
+      Deferred.prototype.reject = function(e) {
+        var self;
+        self = this;
+        if (self.errorbacks.length) {
+          self.errorbacks[self.errorbacks.length](e);
+        } else {
+          throw new Error(e);
+        }
+      };
+
+      return Deferred;
+
+    })();
+    onMessage = function(fn) {
+      if (doc.addEventListener) {
+        return doc.addEventListener("message", fn);
+      } else {
+        return doc.attachEvent("onmessage", fn);
       }
-      return el;
+    };
+    randomHash = function() {
+      var rh;
+      rh = Math.random().toString(36).substr(2);
+      return "xstore-" + rh;
+    };
+    createPromise = function(event, item) {
+      return function(resolve, reject) {
+        var d, deferredHash;
+        deferredHash = randomHash();
+        d = [0, deferredHash, event, item.k, item.v];
+        deferredObject[deferredHash] = {
+          resolve: resolve,
+          reject: reject
+        };
+        if (usePostMessage) {
+          proxyWin.postMessage(JSON.stringify(d), '*');
+        } else {
+          if (iframe !== null) {
+            cacheBust += 1;
+            d[0] = +(new Date) + cacheBust;
+            hash = '#' + JSON.stringify(d);
+            if (iframe.src) {
+              iframe.src = "" + proxyPage + hash;
+            } else if ((iframe.contentWindow != null) && (iframe.contentWindow.location != null)) {
+              iframe.contentWindow.location = "" + proxyPage + hash;
+            } else {
+              iframe.setAttribute('src', "" + proxyPage + hash);
+            }
+          }
+        }
+      };
+    };
+    handleMessageEvent = function(e) {
+      var d, di, id;
+      d = e.data;
+      if (typeof d === "string") {
+        if (/^xstore-/.test(d)) {
+          d = d.split(",");
+        } else if (jsonEncode) {
+          try {
+            d = JSON.parse(d);
+          } catch (_error) {
+            return;
+          }
+        }
+      }
+      if (!(d instanceof Array)) {
+        return;
+      }
+      id = d[1];
+      if (!/^xstore-/.test(id)) {
+        return;
+      }
+      di = deferredObject[id];
+      if (di) {
+        if (/^error-/.test(d[2])) {
+          di.reject(d[2]);
+        } else {
+          di.reject(d[4]);
+        }
+        return delete deferredObject[id];
+      }
     };
 
     /**
-     * modal
+     * xstore class
+    #
      */
-    modal = (function() {
-      function modal() {}
+    xstore = (function() {
+      function xstore() {}
 
-      modal.prototype.elWrapper = null;
-
-      modal.prototype.el = null;
-
-      modal.prototype.options = {};
-
-      modal.prototype.show = function(options) {
-        var self;
-        self = this;
-        self.elWrapper = createModal();
-        if (!self.el) {
-          self.el = $doc.getElementById("gmodalContent");
-        }
-        if ((options != null)) {
-          self.options = options;
-          if ((self.options.content != null)) {
-            self.el.innerHTML = self.options.content;
-            self.options.content = null;
-          }
-        }
-        if (!self.options) {
-          return self;
-        }
-        self.elWrapper.style.display = self.elWrapper.style.visibility = "";
-        self.elWrapper.className = ($baseCls + " gmodal-show ") + (self.options.cls || '');
-        self.emit('show');
-        return this;
+      xstore.get = function(k) {
+        return (new Deferred).promise(createPromise('get', k));
       };
 
-      modal.prototype.hide = function() {
-        var self;
-        self = this;
-        if (!self.elWrapper) {
-          return self;
-        }
-        self.elWrapper.className = "" + $baseCls;
-        return self.emit('hide');
+      xstore.set = function(k, v) {
+        return (new Deferred).promise(createPromise('set', {
+          'k': k
+        }, {
+          'v': v
+        }));
       };
 
-      return modal;
+      xstore.remove = function(k) {
+        return (new Deferred).promise(createPromise('remove', k));
+      };
+
+      xstore.clear = function() {
+        return (new Deferred).promise(createPromise('clear'));
+      };
+
+      xstore.init = function(options) {
+        if (options.isProxy) {
+          proxy.init;
+          return;
+        }
+        proxyPage = options.url || proxyPage;
+        if (win.location.protocol === 'https') {
+          proxyPage = proxyPage.replace('http:', 'https:');
+        }
+        return iframe = load("" + proxyPage, (function(_this) {
+          return function() {
+            proxyWin = iframe.contentWindow;
+            if (!usePostMessage) {
+              hash = proxyWin.location.hash;
+              return setInterval((function() {
+                if (proxyWin.location.hash !== hash) {
+                  hash = proxyWin.location.hash;
+                  handleMessageEvent({
+                    origin: proxyDomain,
+                    data: hash.substr(1)
+                  });
+                }
+              }), delay);
+            } else {
+              return onMessage(handleMessageEvent);
+            }
+          };
+        })(this));
+      };
+
+      return xstore;
 
     })();
-    Emitter(modal.prototype);
-    result = new modal();
-    win.gmodal = result;
-    return module.exports = result;
+    return modules["export"] = xstore;
   })(window);
 
 }).call(this);
 
-}, {"emitter":2,"./template.html":3,"./index.css":4}],
+}, {"load-iframe":2,"./proxy.coffee":3}],
 2: [function(require, module, exports) {
 
 /**
- * Expose `Emitter`.
+ * Module dependencies.
  */
 
-module.exports = Emitter;
+var onload = require('script-onload');
+var tick = require('next-tick');
+var type = require('type');
 
 /**
- * Initialize a new `Emitter`.
+ * Expose `loadScript`.
  *
+ * @param {Object} options
+ * @param {Function} fn
  * @api public
  */
 
-function Emitter(obj) {
-  if (obj) return mixin(obj);
+module.exports = function loadIframe(options, fn){
+  if (!options) throw new Error('Cant load nothing...');
+
+  // Allow for the simplest case, just passing a `src` string.
+  if ('string' == type(options)) options = { src : options };
+
+  var https = document.location.protocol === 'https:' ||
+              document.location.protocol === 'chrome-extension:';
+
+  // If you use protocol relative URLs, third-party scripts like Google
+  // Analytics break when testing with `file:` so this fixes that.
+  if (options.src && options.src.indexOf('//') === 0) {
+    options.src = https ? 'https:' + options.src : 'http:' + options.src;
+  }
+
+  // Allow them to pass in different URLs depending on the protocol.
+  if (https && options.https) options.src = options.https;
+  else if (!https && options.http) options.src = options.http;
+
+  // Make the `<iframe>` element and insert it before the first iframe on the
+  // page, which is guaranteed to exist since this Javaiframe is running.
+  var iframe = document.createElement('iframe');
+  iframe.src = options.src;
+  iframe.width = options.width || 1;
+  iframe.height = options.height || 1;
+  iframe.style.display = 'none';
+
+  // If we have a fn, attach event handlers, even in IE. Based off of
+  // the Third-Party Javascript script loading example:
+  // https://github.com/thirdpartyjs/thirdpartyjs-code/blob/master/examples/templates/02/loading-files/index.html
+  if ('function' == type(fn)) {
+    onload(iframe, fn);
+  }
+
+  tick(function(){
+    // Append after event listeners are attached for IE.
+    var firstScript = document.getElementsByTagName('script')[0];
+    firstScript.parentNode.insertBefore(iframe, firstScript);
+  });
+
+  // Return the iframe element in case they want to do anything special, like
+  // give it an ID or attributes.
+  return iframe;
+};
+}, {"script-onload":4,"next-tick":5,"type":6}],
+4: [function(require, module, exports) {
+
+// https://github.com/thirdpartyjs/thirdpartyjs-code/blob/master/examples/templates/02/loading-files/index.html
+
+/**
+ * Invoke `fn(err)` when the given `el` script loads.
+ *
+ * @param {Element} el
+ * @param {Function} fn
+ * @api public
+ */
+
+module.exports = function(el, fn){
+  return el.addEventListener
+    ? add(el, fn)
+    : attach(el, fn);
 };
 
 /**
- * Mixin the emitter properties.
+ * Add event listener to `el`, `fn()`.
  *
- * @param {Object} obj
- * @return {Object}
+ * @param {Element} el
+ * @param {Function} fn
  * @api private
  */
 
-function mixin(obj) {
-  for (var key in Emitter.prototype) {
-    obj[key] = Emitter.prototype[key];
-  }
-  return obj;
+function add(el, fn){
+  el.addEventListener('load', function(_, e){ fn(null, e); }, false);
+  el.addEventListener('error', function(e){
+    var err = new Error('script error "' + el.src + '"');
+    err.event = e;
+    fn(err);
+  }, false);
 }
 
 /**
- * Listen on the given `event` with `fn`.
+ * Attach evnet.
  *
- * @param {String} event
+ * @param {Element} el
  * @param {Function} fn
- * @return {Emitter}
- * @api public
+ * @api private
  */
 
-Emitter.prototype.on =
-Emitter.prototype.addEventListener = function(event, fn){
-  this._callbacks = this._callbacks || {};
-  (this._callbacks['$' + event] = this._callbacks['$' + event] || [])
-    .push(fn);
-  return this;
-};
+function attach(el, fn){
+  el.attachEvent('onreadystatechange', function(e){
+    if (!/complete|loaded/.test(el.readyState)) return;
+    fn(null, e);
+  });
+  el.attachEvent('onerror', function(e){
+    var err = new Error('failed to load the script "' + el.src + '"');
+    err.event = e || window.event;
+    fn(err);
+  });
+}
 
-/**
- * Adds an `event` listener that will be invoked a single
- * time then automatically removed.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
+}, {}],
+5: [function(require, module, exports) {
+"use strict"
 
-Emitter.prototype.once = function(event, fn){
-  function on() {
-    this.off(event, on);
-    fn.apply(this, arguments);
-  }
+if (typeof setImmediate == 'function') {
+  module.exports = function(f){ setImmediate(f) }
+}
+// legacy node.js
+else if (typeof process != 'undefined' && typeof process.nextTick == 'function') {
+  module.exports = process.nextTick
+}
+// fallback for other environments / postMessage behaves badly on IE8
+else if (typeof window == 'undefined' || window.ActiveXObject || !window.postMessage) {
+  module.exports = function(f){ setTimeout(f) };
+} else {
+  var q = [];
 
-  on.fn = fn;
-  this.on(event, on);
-  return this;
-};
-
-/**
- * Remove the given callback for `event` or all
- * registered callbacks.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.off =
-Emitter.prototype.removeListener =
-Emitter.prototype.removeAllListeners =
-Emitter.prototype.removeEventListener = function(event, fn){
-  this._callbacks = this._callbacks || {};
-
-  // all
-  if (0 == arguments.length) {
-    this._callbacks = {};
-    return this;
-  }
-
-  // specific event
-  var callbacks = this._callbacks['$' + event];
-  if (!callbacks) return this;
-
-  // remove all handlers
-  if (1 == arguments.length) {
-    delete this._callbacks['$' + event];
-    return this;
-  }
-
-  // remove specific handler
-  var cb;
-  for (var i = 0; i < callbacks.length; i++) {
-    cb = callbacks[i];
-    if (cb === fn || cb.fn === fn) {
-      callbacks.splice(i, 1);
-      break;
+  window.addEventListener('message', function(){
+    var i = 0;
+    while (i < q.length) {
+      try { q[i++](); }
+      catch (e) {
+        q = q.slice(i);
+        window.postMessage('tic!', '*');
+        throw e;
+      }
     }
-  }
-  return this;
-};
+    q.length = 0;
+  }, true);
 
+  module.exports = function(fn){
+    if (!q.length) window.postMessage('tic!', '*');
+    q.push(fn);
+  }
+}
+
+}, {}],
+6: [function(require, module, exports) {
 /**
- * Emit `event` with the given args.
- *
- * @param {String} event
- * @param {Mixed} ...
- * @return {Emitter}
+ * toString ref.
  */
 
-Emitter.prototype.emit = function(event){
-  this._callbacks = this._callbacks || {};
-  var args = [].slice.call(arguments, 1)
-    , callbacks = this._callbacks['$' + event];
-
-  if (callbacks) {
-    callbacks = callbacks.slice(0);
-    for (var i = 0, len = callbacks.length; i < len; ++i) {
-      callbacks[i].apply(this, args);
-    }
-  }
-
-  return this;
-};
+var toString = Object.prototype.toString;
 
 /**
- * Return array of callbacks for `event`.
+ * Return the type of `val`.
  *
- * @param {String} event
- * @return {Array}
+ * @param {Mixed} val
+ * @return {String}
  * @api public
  */
 
-Emitter.prototype.listeners = function(event){
-  this._callbacks = this._callbacks || {};
-  return this._callbacks['$' + event] || [];
-};
+module.exports = function(val){
+  switch (toString.call(val)) {
+    case '[object Date]': return 'date';
+    case '[object RegExp]': return 'regexp';
+    case '[object Arguments]': return 'arguments';
+    case '[object Array]': return 'array';
+    case '[object Error]': return 'error';
+  }
 
-/**
- * Check if this emitter has `event` handlers.
- *
- * @param {String} event
- * @return {Boolean}
- * @api public
- */
+  if (val === null) return 'null';
+  if (val === undefined) return 'undefined';
+  if (val !== val) return 'nan';
+  if (val && val.nodeType === 1) return 'element';
 
-Emitter.prototype.hasListeners = function(event){
-  return !! this.listeners(event).length;
+  val = val.valueOf
+    ? val.valueOf()
+    : Object.prototype.valueOf.apply(val)
+
+  return typeof val;
 };
 
 }, {}],
 3: [function(require, module, exports) {
-module.exports = '<div class="gmodal-wrap gmodal-top">&nbsp;<div>\n<div class="gmodal-wrap gmodal-left"></div><div class="gmodal-content" id="gmodalContent"></div><div class="gmodal-wrap gmodal-right"></div>';
-}, {}],
-4: [function(require, module, exports) {
-module.exports = '.gmodal {\n    display: none;\n    overflow: hidden;\n    outline: 0;\n    -webkit-overflow-scrolling: touch;\n    position: fixed;\n    top: 0;\n    left: 0;\n    bottom: 0;\n    right: 0;\n    width: 100%;\n    height: 100%;\n    z-index: 9999990;  /* based on safari 16777271 */ \n}\n.gmodal-show { display: table }\n.gmodal-wrap,\n.gmodal-content {\n    display: table-cell;\n    width: 33%;\n}';
+(function() {
+  var myproxy, onMessage, store, usePostMessage;
+
+  store = require('store.js');
+
+  onMessage = function(fn) {
+    if (document.addEventListener) {
+      return window.addEventListener("message", fn);
+    } else {
+      return window.attachEvent("onmessage", fn);
+    }
+  };
+
+  usePostMessage = win.postMessage != null;
+
+  myproxy = (function() {
+    var proxy;
+
+    function myproxy() {}
+
+    myproxy.prototype.delay = 333;
+
+    myproxy.prototype.hash = win.location.hash;
+
+    myproxy.prototype.init = function() {
+      var self;
+      self = this;
+      if (usePostMessage) {
+        return onMessage(self.handleMessage);
+      } else {
+        return setInterval((function() {
+          var hash, newhash;
+          newhash = win.location.hash;
+          if (newhash !== hash) {
+            hash = newhash;
+            self.handleMessage({
+              data: JSON.parse(newhash.substr(1))
+            });
+          }
+        }), self.delay);
+      }
+    };
+
+    myproxy.prototype.handleMessage = function(evt) {
+      var cacheBust, d, hash, id, key, method, myCacheBust, self;
+      d = e.data;
+      if (typeof d === "string") {
+        if (/^xstore-/.test(d)) {
+          d = d.split(",");
+        } else if (jsonEncode) {
+          try {
+            d = JSON.parse(d);
+          } catch (_error) {
+            return;
+          }
+        }
+      }
+      if (!(d instanceof Array)) {
+        return;
+      }
+      id = d[1];
+      if (!/^xstore-/.test(id)) {
+        return;
+      }
+      self = this;
+      key = d[3] || 'xstore';
+      method = d[2];
+      cacheBust = 0;
+      if (method === 'get') {
+        d[4] = store.get(key);
+      } else if (method === 'set') {
+        store.set(key, d[4]);
+      } else if (method === 'remove') {
+        store.remove(key);
+      } else if (method === 'clear') {
+        store.clear();
+      } else {
+        d[2] = 'error-' + method;
+      }
+      if (usePostMessage) {
+        evt.source.postMessage(JSON.stringify(d), evt.origin);
+      } else {
+        cacheBust += 1;
+        myCacheBust = +(new Date) + cacheBust;
+        d[0] = myCacheBust;
+        hash = '#' + JSON.stringify(d);
+        win.location = win.location.href.replace(globals.location.hash, '') + hash;
+      }
+    };
+
+    proxy = new myproxy();
+
+    return myproxy;
+
+  })();
+
+  modules["export"] = proxy;
+
+}).call(this);
+
+}, {"store.js":7}],
+7: [function(require, module, exports) {
+;(function(win){
+	var store = {},
+		doc = win.document,
+		localStorageName = 'localStorage',
+		scriptTag = 'script',
+		storage
+
+	store.disabled = false
+	store.version = '1.3.17'
+	store.set = function(key, value) {}
+	store.get = function(key, defaultVal) {}
+	store.has = function(key) { return store.get(key) !== undefined }
+	store.remove = function(key) {}
+	store.clear = function() {}
+	store.transact = function(key, defaultVal, transactionFn) {
+		if (transactionFn == null) {
+			transactionFn = defaultVal
+			defaultVal = null
+		}
+		if (defaultVal == null) {
+			defaultVal = {}
+		}
+		var val = store.get(key, defaultVal)
+		transactionFn(val)
+		store.set(key, val)
+	}
+	store.getAll = function() {}
+	store.forEach = function() {}
+
+	store.serialize = function(value) {
+		return JSON.stringify(value)
+	}
+	store.deserialize = function(value) {
+		if (typeof value != 'string') { return undefined }
+		try { return JSON.parse(value) }
+		catch(e) { return value || undefined }
+	}
+
+	// Functions to encapsulate questionable FireFox 3.6.13 behavior
+	// when about.config::dom.storage.enabled === false
+	// See https://github.com/marcuswestin/store.js/issues#issue/13
+	function isLocalStorageNameSupported() {
+		try { return (localStorageName in win && win[localStorageName]) }
+		catch(err) { return false }
+	}
+
+	if (isLocalStorageNameSupported()) {
+		storage = win[localStorageName]
+		store.set = function(key, val) {
+			if (val === undefined) { return store.remove(key) }
+			storage.setItem(key, store.serialize(val))
+			return val
+		}
+		store.get = function(key, defaultVal) {
+			var val = store.deserialize(storage.getItem(key))
+			return (val === undefined ? defaultVal : val)
+		}
+		store.remove = function(key) { storage.removeItem(key) }
+		store.clear = function() { storage.clear() }
+		store.getAll = function() {
+			var ret = {}
+			store.forEach(function(key, val) {
+				ret[key] = val
+			})
+			return ret
+		}
+		store.forEach = function(callback) {
+			for (var i=0; i<storage.length; i++) {
+				var key = storage.key(i)
+				callback(key, store.get(key))
+			}
+		}
+	} else if (doc.documentElement.addBehavior) {
+		var storageOwner,
+			storageContainer
+		// Since #userData storage applies only to specific paths, we need to
+		// somehow link our data to a specific path.  We choose /favicon.ico
+		// as a pretty safe option, since all browsers already make a request to
+		// this URL anyway and being a 404 will not hurt us here.  We wrap an
+		// iframe pointing to the favicon in an ActiveXObject(htmlfile) object
+		// (see: http://msdn.microsoft.com/en-us/library/aa752574(v=VS.85).aspx)
+		// since the iframe access rules appear to allow direct access and
+		// manipulation of the document element, even for a 404 page.  This
+		// document can be used instead of the current document (which would
+		// have been limited to the current path) to perform #userData storage.
+		try {
+			storageContainer = new ActiveXObject('htmlfile')
+			storageContainer.open()
+			storageContainer.write('<'+scriptTag+'>document.w=window</'+scriptTag+'><iframe src="/favicon.ico"></iframe>')
+			storageContainer.close()
+			storageOwner = storageContainer.w.frames[0].document
+			storage = storageOwner.createElement('div')
+		} catch(e) {
+			// somehow ActiveXObject instantiation failed (perhaps some special
+			// security settings or otherwse), fall back to per-path storage
+			storage = doc.createElement('div')
+			storageOwner = doc.body
+		}
+		var withIEStorage = function(storeFunction) {
+			return function() {
+				var args = Array.prototype.slice.call(arguments, 0)
+				args.unshift(storage)
+				// See http://msdn.microsoft.com/en-us/library/ms531081(v=VS.85).aspx
+				// and http://msdn.microsoft.com/en-us/library/ms531424(v=VS.85).aspx
+				storageOwner.appendChild(storage)
+				storage.addBehavior('#default#userData')
+				storage.load(localStorageName)
+				var result = storeFunction.apply(store, args)
+				storageOwner.removeChild(storage)
+				return result
+			}
+		}
+
+		// In IE7, keys cannot start with a digit or contain certain chars.
+		// See https://github.com/marcuswestin/store.js/issues/40
+		// See https://github.com/marcuswestin/store.js/issues/83
+		var forbiddenCharsRegex = new RegExp("[!\"#$%&'()*+,/\\\\:;<=>?@[\\]^`{|}~]", "g")
+		function ieKeyFix(key) {
+			return key.replace(/^d/, '___$&').replace(forbiddenCharsRegex, '___')
+		}
+		store.set = withIEStorage(function(storage, key, val) {
+			key = ieKeyFix(key)
+			if (val === undefined) { return store.remove(key) }
+			storage.setAttribute(key, store.serialize(val))
+			storage.save(localStorageName)
+			return val
+		})
+		store.get = withIEStorage(function(storage, key, defaultVal) {
+			key = ieKeyFix(key)
+			var val = store.deserialize(storage.getAttribute(key))
+			return (val === undefined ? defaultVal : val)
+		})
+		store.remove = withIEStorage(function(storage, key) {
+			key = ieKeyFix(key)
+			storage.removeAttribute(key)
+			storage.save(localStorageName)
+		})
+		store.clear = withIEStorage(function(storage) {
+			var attributes = storage.XMLDocument.documentElement.attributes
+			storage.load(localStorageName)
+			for (var i=0, attr; attr=attributes[i]; i++) {
+				storage.removeAttribute(attr.name)
+			}
+			storage.save(localStorageName)
+		})
+		store.getAll = function(storage) {
+			var ret = {}
+			store.forEach(function(key, val) {
+				ret[key] = val
+			})
+			return ret
+		}
+		store.forEach = withIEStorage(function(storage, callback) {
+			var attributes = storage.XMLDocument.documentElement.attributes
+			for (var i=0, attr; attr=attributes[i]; ++i) {
+				callback(attr.name, store.deserialize(storage.getAttribute(attr.name)))
+			}
+		})
+	}
+
+	try {
+		var testKey = '__storejs__'
+		store.set(testKey, testKey)
+		if (store.get(testKey) != testKey) { store.disabled = true }
+		store.remove(testKey)
+	} catch(e) {
+		store.disabled = true
+	}
+	store.enabled = !store.disabled
+
+	if (typeof module != 'undefined' && module.exports && this.module !== module) { module.exports = store }
+	else if (typeof define === 'function' && define.amd) { define(store) }
+	else { win.store = store }
+
+})(Function('return this')());
+
 }, {}]}, {}, {"1":""})
 );

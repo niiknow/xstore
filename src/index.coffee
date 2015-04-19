@@ -1,23 +1,23 @@
 ((win) ->
   doc = win.document
+  load = require('load-iframe')
+  proxy = require('./proxy.coffee')
 
   # Setting - The base domain of the proxy
-  proxyDomain = 'http://niiknow.github.io/xstore'
-  proxyPage = '/xstore.html'
+  proxyPage = 'http://niiknow.github.io/xstore/xstore.html'
   storageKey = 'xstore'
   deferredObject = {}
-  iframe = doc.createElement('iframe')
+  iframe = undefined
   proxyWin = undefined
-  script = undefined
   usePostMessage = win.postMessage?
   cacheBust = 0
   hash = undefined
   delay = 333
 
-  if (win.location.protocol == 'https')
-    proxyDomain = proxyDomain.replace('http:', 'https:')
-
+  ###*
   # defer/promise class
+  #
+  ###
   class Deferred
     callbacks: []
     errorbacks: []
@@ -66,8 +66,6 @@
     else
       doc.attachEvent "onmessage", fn
 
-  usePostMessage = win.postMessage?
-
   # Helper to return a random string to serve as a simple hash
   randomHash = ->
     rh = Math.random().toString(36).substr 2
@@ -81,7 +79,7 @@
       deferredHash = randomHash()
 
       # [cacheBust, messageid, method, key, value]
-      d = [0, deferredHash, event, storageKey, item]
+      d = [0, deferredHash, event, item.k, item.v]
 
       # Set the deferred object reference
       deferredObject[deferredHash] =
@@ -93,107 +91,62 @@
         # Post the message as JSON
         proxyWin.postMessage JSON.stringify(d), '*'
       else
-        # postMessage not available so set  hash
+        # postMessage not available so set hash
         if iframe != null
           # Cache bust messages with the same info
           cacheBust += 1
           d[0] = +new Date + cacheBust
           hash = '#' + JSON.stringify(d)
           if iframe.src
-            iframe.src = "#{proxyDomain}#{proxyPage}#{hash}"
+            iframe.src = "#{proxyPage}#{hash}"
           else if iframe.contentWindow? and iframe.contentWindow.location?
-            iframe.contentWindow.location = "#{proxyDomain}#{proxyPage}#{hash}"
+            iframe.contentWindow.location = "#{proxyPage}#{hash}"
           else
-            iframe.setAttribute 'src', "#{proxyDomain}#{proxyPage}#{hash}"
+            iframe.setAttribute 'src', "#{proxyPage}#{hash}"
       return
 
 
+  handleMessageEvent = (e) ->
+    d = e.data
 
-  handleMessageEvent = (event) ->
-    response = undefined
-    # Parse the response
-    response = JSON.parse(event.data)
+    if typeof d is "string"
+      #IE will "toString()" the array, this reverses that action
+      if /^xstore-/.test d
+        d = d.split ","
+      #this browser must json encode postmessages
+      else if jsonEncode
+        try d = JSON.parse d
+        catch
+          return
+
+    # xstore always pass an array
+    unless d instanceof Array
+      return
+    # [cacheBust, messageid, method, key, value]
+
+    #return unless lead by an xstore id
+    id = d[1]
+    unless /^xstore-/.test id
+      return
+
+    di = deferredObject[id]
+
     # if there is a deferred object resolve and remove
-    if response.deferredHash
-      if response.error
+    if di
+      if /^error-/.test d[2]
         # Reject if error                        
-        deferredObject[response.deferredHash].reject response.error
+        di.reject d[2]
       else
         # Resolve the deferred object
-        deferredObject[response.deferredHash].resolve response.storageObject
+        di.reject d[4]
       # Remove the deferred item
-      delete deferredObject[response.deferredIndex]
-    else if response.error
-      throw new Error(response.error)
-
-  handleDocumentReady = ->
-    iframe = document.body.appendChild(iframe)
-    proxyWin = iframe.contentWindow
-    # If postMessage not supported set up polling for hash change
-    if !usePostMessage
-      # Poll for hash changes
-      hash = proxyWin.location.hash
-      setInterval (->
-        if proxyWin.location.hash != hash
-          # Set new hash
-          hash = proxyWin.location.hash
-          handleMessageEvent
-            origin: proxyDomain
-            data: hash.substr(1)
-        return
-      ), delay
-    return
-
-  contentLoaded = (fn) ->
-    done = false
-    top = true
-    root = doc.documentElement
-    modern = doc.addEventListener
-    add = if modern then 'addEventListener' else 'attachEvent'
-    rem = if modern then 'removeEventListener' else 'detachEvent'
-    pre = if modern then '' else 'on'
-
-    init = (e) ->
-      if e.type == 'readystatechange' and doc.readyState != 'complete'
-        return
-      (if e.type == 'load' then win else doc)[rem] pre + e.type, init, false
-      if !done and (done = true)
-        fn.call win, e.type or e
-      return
-
-    poll = ->
-      try
-        root.doScroll 'left'
-      catch e
-        setTimeout poll, 50
-        return
-      init 'poll'
-      return
-
-    if doc.readyState == 'complete'
-      fn.call win, 'lazy'
-    else
-      if !modern and root.doScroll
-        try
-          top = !win.frameElement
-        catch e
-        if top
-          poll()
-      doc[add] pre + 'DOMContentLoaded', init, false
-      doc[add] pre + 'readystatechange', init, false
-      win[add] pre + 'load', init, false
-    return
+      delete deferredObject[id]
 
 
-  # Set iFrame attributes
-  iframe.id = 'xstore'
-  iframe.src = "#{proxyDomain}#{proxyPage}"
-  iframe.style.display = 'none'
-  
-  contentLoaded handleDocumentReady
-  onMessage(handleMessageEvent)
-
-
+  ###*
+  # xstore class
+  #
+  ###
   class xstore
     # Function to get localStorage from proxy
     @get: (k) ->
@@ -201,11 +154,47 @@
 
     # Function to set localStorage on proxy
     @set: (k, v) ->
-      if typeof k != 'string' and typeof k != 'number'
-        throw new Error('Property argument must be a string or number to set a specific property')
       (new Deferred).promise(createPromise('set',
         'k': k
       'v': v))
+
+    # Function to remove on proxy
+    @remove: (k) ->
+      (new Deferred).promise(createPromise('remove', k))
+
+    # Function to clear on proxy
+    @clear: () ->
+      (new Deferred).promise(createPromise('clear'))
+
+    @init: (options) ->
+      if (options.isProxy)
+        proxy.init
+        return
+
+      proxyPage = options.url || proxyPage
+
+      if (win.location.protocol == 'https')
+        proxyPage = proxyPage.replace('http:', 'https:')
+
+      # set iFrame attributes
+      iframe = load "#{proxyPage}", =>
+        proxyWin = iframe.contentWindow
+        # If postMessage not supported set up polling for hash change
+        if !usePostMessage
+          # Poll for hash changes
+          hash = proxyWin.location.hash
+          setInterval (->
+            if proxyWin.location.hash != hash
+              # Set new hash
+              hash = proxyWin.location.hash
+              handleMessageEvent
+                origin: proxyDomain
+                data: hash.substr(1)
+            return
+          ), delay
+        else 
+          onMessage(handleMessageEvent)
+
 
   modules.export = xstore
 
