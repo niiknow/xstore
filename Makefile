@@ -26,7 +26,7 @@ default: build.js
 
 clean:
 	@rm -rf components $(BUILD)
-	@rm -f index.js index.min.js
+	@rm -f xstore.js xstore.min.js
 	@rm -rf node_modules npm-debug.log
 #
 # Test with phantomjs.
@@ -42,7 +42,7 @@ test: $(BUILD)
 test-sauce: $(BUILD)
 	@$(DUOT) saucelabs \
 		--browsers $(BROWSER) \
-		--title index.js
+		--title xstore.js
 
 #
 # Test in the browser.
@@ -64,12 +64,12 @@ test-browser: $(BUILD)
 .PHONY: test-sauce
 
 #
-# Target for `index.js` file.
+# Target for `xstore.js` file.
 #
 
-index.js: node_modules $(SRC)
-	@$(DUO) --standalone gmodal --use duo-coffee src/index.coffee > index.js
-	@$(MINIFY) index.js --output index.min.js
+xstore.js: node_modules $(SRC)
+	@$(DUO) --standalone xstore --use duo-coffee src/index.coffee > xstore.js
+	@$(MINIFY) xstore.js --output xstore.min.js
 
 #
 # Target for `node_modules` folder.
@@ -82,7 +82,7 @@ node_modules: package.json
 # Target for build files.
 #
 
-$(BUILD): $(TESTS) index.js
+$(BUILD): $(TESTS) xstore.js
 	@$(DUO) --development test/tests.js > $(BUILD)
 
 #

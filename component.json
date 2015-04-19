@@ -1,6 +1,6 @@
 {
   "name": "xstore",
-  "main": "index.js",
+  "main": "xstore.js",
   "repo": "niiknow/xstore",
   "description": "Cross domain storage",
   "version": "1.0.0",

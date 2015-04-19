@@ -3,11 +3,9 @@
   load = require('load-iframe')
   Queue = require('queue')
   store = require('store.js')
-  q = new Queue({ concurrency: 1, timeout: 350 });
 
   # Setting - The base domain of the proxy
   proxyPage = 'http://niiknow.github.io/xstore/xstore.html'
-  storageKey = 'xstore'
   deferredObject = {}
   iframe = undefined
   proxyWin = undefined
@@ -15,6 +13,9 @@
   cacheBust = 0
   hash = undefined
   delay = 333
+  lstore = {}
+  q = new Queue({ concurrency: 1, timeout: delay + 5 });
+  dnt = win.navigator.doNotTrack or navigator.msDoNotTrack or win.doNotTrack
 
   #cross browser event handler names
   onMessage = (fn) ->
@@ -214,18 +215,44 @@
   class xstore
     # Function to get localStorage from proxy
     @get: (k) ->
+      if (dnt)
+        return {
+          then: (fn) ->
+            fn lstore[k]
+        }
       (new mydeferred()).q('get', {'k': k})
 
     # Function to set localStorage on proxy
     @set: (k, v) ->
+      if (dnt)
+        return {
+          then: (fn) ->
+            lstore[k] = v
+            fn lstore[k]
+        }
+
       (new mydeferred()).q('set', {'k': k, 'v': v})
 
     # Function to remove on proxy
     @remove: (k) ->
+      if (dnt)
+        return {
+          then: (fn) ->
+            delete lstore[k]
+            fn
+        }
+
       (new mydeferred()).q('remove', {'k': k})
 
     # Function to clear on proxy
     @clear: () ->
+      if (dnt)
+        return {
+          then: (fn) ->
+            lstore = {}
+            fn
+        }
+
       (new mydeferred()).q('clear')
 
     @init: (options) ->
@@ -235,6 +262,8 @@
         return
 
       proxyPage = options.url or proxyPage
+      if options.dntIgnore
+        dnt = false
 
       if (win.location.protocol == 'https')
         proxyPage = proxyPage.replace('http:', 'https:')

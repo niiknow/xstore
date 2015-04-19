@@ -9,7 +9,7 @@
     "web"
   ],
   "repository": "git://github.com/niiknow/xstore.git",
-  "main": "index.js",
+  "main": "xstore.js",
   "dependencies": {},
   "devDependencies": {
     "component-coffee": "*",

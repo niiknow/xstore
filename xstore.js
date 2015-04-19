@@ -4,7 +4,7 @@
   } else if ('function' == typeof define && define.amd) {
     define(function(){ return require('1'); });
   } else {
-    this['gmodal'] = require('1');
+    this['xstore'] = require('1');
   }
 })((function outer(modules, cache, entries){
 
@@ -93,17 +93,12 @@
 1: [function(require, module, exports) {
 (function() {
   (function(win) {
-    var Queue, cacheBust, deferredObject, delay, doPostMessage, doc, handleMessageEvent, hash, iframe, load, mydeferred, myproxy, onMessage, proxyPage, proxyWin, q, randomHash, storageKey, store, usePostMessage, xstore;
+    var Queue, cacheBust, deferredObject, delay, dnt, doPostMessage, doc, handleMessageEvent, hash, iframe, load, lstore, mydeferred, myproxy, onMessage, proxyPage, proxyWin, q, randomHash, store, usePostMessage, xstore;
     doc = win.document;
     load = require('load-iframe');
     Queue = require('queue');
     store = require('store.js');
-    q = new Queue({
-      concurrency: 1,
-      timeout: 350
-    });
     proxyPage = 'http://niiknow.github.io/xstore/xstore.html';
-    storageKey = 'xstore';
     deferredObject = {};
     iframe = void 0;
     proxyWin = void 0;
@@ -111,6 +106,12 @@
     cacheBust = 0;
     hash = void 0;
     delay = 333;
+    lstore = {};
+    q = new Queue({
+      concurrency: 1,
+      timeout: delay + 5
+    });
+    dnt = win.navigator.doNotTrack || navigator.msDoNotTrack || win.doNotTrack;
     onMessage = function(fn) {
       if (win.addEventListener) {
         return win.addEventListener("message", fn, false);
@@ -321,12 +322,27 @@
       function xstore() {}
 
       xstore.get = function(k) {
+        if (dnt) {
+          return {
+            then: function(fn) {
+              return fn(lstore[k]);
+            }
+          };
+        }
         return (new mydeferred()).q('get', {
           'k': k
         });
       };
 
       xstore.set = function(k, v) {
+        if (dnt) {
+          return {
+            then: function(fn) {
+              lstore[k] = v;
+              return fn(lstore[k]);
+            }
+          };
+        }
         return (new mydeferred()).q('set', {
           'k': k,
           'v': v
@@ -334,12 +350,28 @@
       };
 
       xstore.remove = function(k) {
+        if (dnt) {
+          return {
+            then: function(fn) {
+              delete lstore[k];
+              return fn;
+            }
+          };
+        }
         return (new mydeferred()).q('remove', {
           'k': k
         });
       };
 
       xstore.clear = function() {
+        if (dnt) {
+          return {
+            then: function(fn) {
+              lstore = {};
+              return fn;
+            }
+          };
+        }
         return (new mydeferred()).q('clear');
       };
 
@@ -350,6 +382,9 @@
           return;
         }
         proxyPage = options.url || proxyPage;
+        if (options.dntIgnore) {
+          dnt = false;
+        }
         if (win.location.protocol === 'https') {
           proxyPage = proxyPage.replace('http:', 'https:');
         }
