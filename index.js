@@ -247,7 +247,7 @@
           d[2] = 'error-' + method;
         }
         if (usePostMessage) {
-          evt.source.postMessage(JSON.stringify(d), evt.origin);
+          e.source.postMessage(JSON.stringify(d), evt.origin);
         } else {
           cacheBust += 1;
           myCacheBust = +(new Date) + cacheBust;
@@ -371,7 +371,7 @@
         }
         return iframe = load(proxyPage, function() {
           iframe.style.display = 'block';
-          iframe.setAttribute("id", "frame");
+          iframe.setAttribute("id", "xstore");
           proxyWin = iframe.contentWindow;
           if (!usePostMessage) {
             hash = proxyWin.location.hash;

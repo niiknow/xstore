@@ -130,7 +130,7 @@
 
       if usePostMessage
         # Post the return message back as JSON
-        evt.source.postMessage JSON.stringify(d), evt.origin
+        e.source.postMessage JSON.stringify(d), evt.origin
       else
         # Cache bust messages with the same info
         cacheBust += 1
@@ -260,7 +260,7 @@
       # set iFrame attributes
       iframe = load proxyPage, () ->
         iframe.style.display = 'block'
-        iframe.setAttribute("id", "frame")
+        iframe.setAttribute("id", "xstore")
         proxyWin = iframe.contentWindow
         # If postMessage not supported set up polling for hash change
         if !usePostMessage
