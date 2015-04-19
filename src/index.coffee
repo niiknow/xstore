@@ -28,10 +28,10 @@
   #
   ###
   class mydeferred
-    mycallbacks: []
-    myerrorbacks: []
-    promise: (event, item) ->
+    q: (event, item) ->
       self = @
+      self.mycallbacks = []
+      self.myerrorbacks = []
       # Message to set the storage
       deferredHash = randomHash()
 
@@ -60,7 +60,7 @@
             iframe.setAttribute 'src', "#{proxyPage}#{hash}"
       return self
 
-    then: (callback, errorback) ->
+    t: (callback, errorback) ->
       self = @
       if errorback
         self.myerrorbacks.push errorback
@@ -132,7 +132,7 @@
       else
         d[2] = 'error-' + method 
 
-      d[1] = id.replace('xstore-', 'xstoreproxy')
+      d[1] = id.replace('xstore-', 'xstoreproxy-')
 
       if usePostMessage
         # Post the return message back as JSON
@@ -182,7 +182,7 @@
     id = d[1]
     unless /^xstoreproxy-/.test id
       return
-      
+
     id = id.replace('xstoreproxy-', 'xstore-')
     di = deferredObject[id]
 
@@ -205,19 +205,19 @@
   class xstore
     # Function to get localStorage from proxy
     @get: (k) ->
-      (new mydeferred()).promise('get', k)
+      (new mydeferred()).q('get', {'k': k})
 
     # Function to set localStorage on proxy
     @set: (k, v) ->
-      (new mydeferred()).promise('set', {'k': k, 'v': v})
+      (new mydeferred()).q('set', {'k': k, 'v': v})
 
     # Function to remove on proxy
     @remove: (k) ->
-      (new mydeferred()).promise('remove', k)
+      (new mydeferred()).q('remove', {'k': k})
 
     # Function to clear on proxy
     @clear: () ->
-      (new mydeferred()).promise('clear')
+      (new mydeferred()).q('clear')
 
     @init: (options) ->
       options = options or {}

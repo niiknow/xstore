@@ -128,13 +128,11 @@
 
       function mydeferred() {}
 
-      mydeferred.prototype.mycallbacks = [];
-
-      mydeferred.prototype.myerrorbacks = [];
-
-      mydeferred.prototype.promise = function(event, item) {
+      mydeferred.prototype.q = function(event, item) {
         var d, deferredHash, self;
         self = this;
+        self.mycallbacks = [];
+        self.myerrorbacks = [];
         deferredHash = randomHash();
         d = [0, deferredHash, event, item.k, item.v];
         deferredObject[deferredHash] = self;
@@ -157,7 +155,7 @@
         return self;
       };
 
-      mydeferred.prototype.then = function(callback, errorback) {
+      mydeferred.prototype.t = function(callback, errorback) {
         var self;
         self = this;
         if (errorback) {
@@ -247,7 +245,7 @@
         } else {
           d[2] = 'error-' + method;
         }
-        d[1] = id.replace('xstore-', 'xstoreproxy');
+        d[1] = id.replace('xstore-', 'xstoreproxy-');
         if (usePostMessage) {
           e.source.postMessage(JSON.stringify(d), '*');
         } else {
@@ -317,22 +315,26 @@
       function xstore() {}
 
       xstore.get = function(k) {
-        return (new mydeferred()).promise('get', k);
+        return (new mydeferred()).q('get', {
+          'k': k
+        });
       };
 
       xstore.set = function(k, v) {
-        return (new mydeferred()).promise('set', {
+        return (new mydeferred()).q('set', {
           'k': k,
           'v': v
         });
       };
 
       xstore.remove = function(k) {
-        return (new mydeferred()).promise('remove', k);
+        return (new mydeferred()).q('remove', {
+          'k': k
+        });
       };
 
       xstore.clear = function() {
-        return (new mydeferred()).promise('clear');
+        return (new mydeferred()).q('clear');
       };
 
       xstore.init = function(options) {
