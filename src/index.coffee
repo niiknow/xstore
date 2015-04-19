@@ -3,7 +3,7 @@
   load = require('load-iframe')
   Queue = require('queue')
   store = require('store.js')
-  q = new Queue({ concurrency: 1, timeout: 1000 });
+  q = new Queue({ concurrency: 1, timeout: 350 });
 
   # Setting - The base domain of the proxy
   proxyPage = 'http://niiknow.github.io/xstore/xstore.html'
@@ -58,13 +58,14 @@
             iframe.contentWindow.location = "#{proxyPage}#{hash}"
           else
             iframe.setAttribute 'src', "#{proxyPage}#{hash}"
-      return self
 
-    t: (callback, errorback) ->
-      self = @
-      if errorback
-        self.myerrorbacks.push errorback
-      self.mycallbacks.push callback
+      # do not make this a prototype method, error in firefox
+      self.then =  (fn, fnErr) ->
+        if fnErr
+          self.myerrorbacks.push fnErr
+        self.mycallbacks.push fn
+        self
+
       self
 
     myresolve: (data) ->
@@ -90,6 +91,14 @@
         onMessage(self.handleProxyMessage)
       else
         # Poll for hash changes
+        setInterval (->
+          newhash = win.location.hash
+          if newhash != hash
+            # Set new hash
+            hash = newhash
+            self.handleProxyMessage data: JSON.parse(newhash.substr(1))
+          return
+        ), self.delay
 
     handleProxyMessage: (e) ->
       d = e.data
@@ -236,8 +245,17 @@
         proxyWin = iframe.contentWindow
         # If postMessage not supported set up polling for hash change
         if !usePostMessage
-          # Poll for hash changes
+           # Poll for hash changes
           hash = proxyWin.location.hash
+          setInterval (->
+            if proxyWin.location.hash != hash
+              # Set new hash
+              hash = proxyWin.location.hash
+              handleMessageEvent
+                origin: proxyDomain
+                data: hash.substr(1)
+            return
+          ), delay
 
         else 
           onMessage(handleMessageEvent)

@@ -100,7 +100,7 @@
     store = require('store.js');
     q = new Queue({
       concurrency: 1,
-      timeout: 1000
+      timeout: 350
     });
     proxyPage = 'http://niiknow.github.io/xstore/xstore.html';
     storageKey = 'xstore';
@@ -152,16 +152,13 @@
             }
           }
         }
-        return self;
-      };
-
-      mydeferred.prototype.t = function(callback, errorback) {
-        var self;
-        self = this;
-        if (errorback) {
-          self.myerrorbacks.push(errorback);
-        }
-        self.mycallbacks.push(callback);
+        self.then = function(fn, fnErr) {
+          if (fnErr) {
+            self.myerrorbacks.push(fnErr);
+          }
+          self.mycallbacks.push(fn);
+          return self;
+        };
         return self;
       };
 
@@ -205,7 +202,16 @@
         if (usePostMessage) {
           return onMessage(self.handleProxyMessage);
         } else {
-
+          return setInterval((function() {
+            var newhash;
+            newhash = win.location.hash;
+            if (newhash !== hash) {
+              hash = newhash;
+              self.handleProxyMessage({
+                data: JSON.parse(newhash.substr(1))
+              });
+            }
+          }), self.delay);
         }
       };
 
@@ -351,7 +357,16 @@
           iframe.setAttribute("id", "xstore");
           proxyWin = iframe.contentWindow;
           if (!usePostMessage) {
-            return hash = proxyWin.location.hash;
+            hash = proxyWin.location.hash;
+            return setInterval((function() {
+              if (proxyWin.location.hash !== hash) {
+                hash = proxyWin.location.hash;
+                handleMessageEvent({
+                  origin: proxyDomain,
+                  data: hash.substr(1)
+                });
+              }
+            }), delay);
           } else {
             return onMessage(handleMessageEvent);
           }
