@@ -2,7 +2,7 @@
   doc = win.document
   load = require('load-iframe')
   Queue = require('queue')
-  q = new Queue({ concurrency: 1, timeout: 350 });
+  q = new Queue({ concurrency: 1, timeout: 1000 });
 
   # Setting - The base domain of the proxy
   proxyPage = 'http://niiknow.github.io/xstore/xstore.html'
@@ -74,7 +74,7 @@
       self = @
       # If postMessage not supported set up polling for hash change
       if usePostMessage
-        onMessage(self.handleMessage)
+        onMessage(handleProxyMessage)
       else
         # Poll for hash changes
         setInterval (->
@@ -82,63 +82,64 @@
           if newhash != hash
             # Set new hash
             hash = newhash
-            self.handleMessage data: JSON.parse(newhash.substr(1))
+            handleProxyMessage data: JSON.parse(newhash.substr(1))
           return
         ), self.delay
-    handleMessage: (evt) ->
-      d = e.data
 
-      if typeof d is "string"
-        #IE will "toString()" the array, this reverses that action
-        if /^xstore-/.test d
-          d = d.split ","
-        #this browser must json encode postmessages
-        else if jsonEncode
-          try d = JSON.parse d
-          catch
-            return
+  handleProxyMessage = (e) ->
+    d = e.data
 
-      # xstore always pass an array
-      unless d instanceof Array
-        return
-      # [cacheBust, messageid, method, key, value]
+    if typeof d is "string"
+      #IE will "toString()" the array, this reverses that action
+      if /^xstore-/.test d
+        d = d.split ","
+      #this browser must json encode postmessages
+      else 
+        try d = JSON.parse d
+        catch
+          return
 
-      #return unless lead by an xstore id
-      id = d[1]
-      unless /^xstore-/.test id
-        return
-
-      self = @    
-      key = d[3] or 'xstore'
-      method = d[2]
-      cacheBust = 0
-
-      # If the key exists in storage
-      if method == 'get'
-        # Get storage object - stringify and send back
-        d[4] = store.get(key)
-      else if method == 'set'
-        store.set(key, d[4])
-      else if method == 'remove'
-        store.remove(key)
-      else if method == 'clear'
-        store.clear()
-      else
-        d[2] = 'error-' + method 
-
-      if usePostMessage
-        # Post the return message back as JSON
-        evt.source.postMessage JSON.stringify(d), evt.origin
-      else
-        # Cache bust messages with the same info
-        cacheBust += 1
-        myCacheBust = +new Date + cacheBust
-        d[0] = myCacheBust
-
-        # postMessage not available so set top location hash - Replace the hash with nothing then add new
-        hash = '#' + JSON.stringify(d)
-        win.location = win.location.href.replace(globals.location.hash, '') + hash
+    # xstore always pass an array
+    unless d instanceof Array
       return
+    # [cacheBust, messageid, method, key, value]
+
+    #return unless lead by an xstore id
+    id = d[1]
+    unless /^xstore-/.test id
+      return
+
+    self = @    
+    key = d[3] or 'xstore'
+    method = d[2]
+    cacheBust = 0
+
+    # If the key exists in storage
+    if method == 'get'
+      # Get storage object - stringify and send back
+      d[4] = store.get(key)
+    else if method == 'set'
+      store.set(key, d[4])
+    else if method == 'remove'
+      store.remove(key)
+    else if method == 'clear'
+      store.clear()
+    else
+      d[2] = 'error-' + method 
+
+    if usePostMessage
+      # Post the return message back as JSON
+      evt.source.postMessage JSON.stringify(d), evt.origin
+    else
+      # Cache bust messages with the same info
+      cacheBust += 1
+      myCacheBust = +new Date + cacheBust
+      d[0] = myCacheBust
+
+      # postMessage not available so set top location hash - Replace the hash with nothing then add new
+      hash = '#' + JSON.stringify(d)
+      win.location = win.location.href.replace(globals.location.hash, '') + hash
+    return
 
   # Helper to return a random string to serve as a simple hash
   randomHash = ->
@@ -257,6 +258,8 @@
 
       # set iFrame attributes
       iframe = load proxyPage, () ->
+        iframe.style.display = 'block'
+        iframe.setAttribute("id", "frame")
         proxyWin = iframe.contentWindow
         # If postMessage not supported set up polling for hash change
         if !usePostMessage
@@ -273,8 +276,6 @@
           ), delay
         else 
           onMessage(handleMessageEvent)
-          
-
 
   win.xstore = xstore
   module.export = xstore

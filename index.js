@@ -93,13 +93,13 @@
 1: [function(require, module, exports) {
 (function() {
   (function(win) {
-    var Deferred, Queue, cacheBust, createPromise, deferredObject, delay, doPostMessage, doc, handleMessageEvent, hash, iframe, load, myproxy, onMessage, proxyPage, proxyWin, q, randomHash, storageKey, usePostMessage, xstore;
+    var Deferred, Queue, cacheBust, createPromise, deferredObject, delay, doPostMessage, doc, handleMessageEvent, handleProxyMessage, hash, iframe, load, myproxy, onMessage, proxyPage, proxyWin, q, randomHash, storageKey, usePostMessage, xstore;
     doc = win.document;
     load = require('load-iframe');
     Queue = require('queue');
     q = new Queue({
       concurrency: 1,
-      timeout: 350
+      timeout: 1000
     });
     proxyPage = 'http://niiknow.github.io/xstore/xstore.html';
     storageKey = 'xstore';
@@ -194,14 +194,14 @@
         var self;
         self = this;
         if (usePostMessage) {
-          return onMessage(self.handleMessage);
+          return onMessage(handleProxyMessage);
         } else {
           return setInterval((function() {
             var newhash;
             newhash = win.location.hash;
             if (newhash !== hash) {
               hash = newhash;
-              self.handleMessage({
+              handleProxyMessage({
                 data: JSON.parse(newhash.substr(1))
               });
             }
@@ -209,56 +209,55 @@
         }
       };
 
-      myproxy.prototype.handleMessage = function(evt) {
-        var d, id, key, method, myCacheBust, self;
-        d = e.data;
-        if (typeof d === "string") {
-          if (/^xstore-/.test(d)) {
-            d = d.split(",");
-          } else if (jsonEncode) {
-            try {
-              d = JSON.parse(d);
-            } catch (_error) {
-              return;
-            }
-          }
-        }
-        if (!(d instanceof Array)) {
-          return;
-        }
-        id = d[1];
-        if (!/^xstore-/.test(id)) {
-          return;
-        }
-        self = this;
-        key = d[3] || 'xstore';
-        method = d[2];
-        cacheBust = 0;
-        if (method === 'get') {
-          d[4] = store.get(key);
-        } else if (method === 'set') {
-          store.set(key, d[4]);
-        } else if (method === 'remove') {
-          store.remove(key);
-        } else if (method === 'clear') {
-          store.clear();
-        } else {
-          d[2] = 'error-' + method;
-        }
-        if (usePostMessage) {
-          evt.source.postMessage(JSON.stringify(d), evt.origin);
-        } else {
-          cacheBust += 1;
-          myCacheBust = +(new Date) + cacheBust;
-          d[0] = myCacheBust;
-          hash = '#' + JSON.stringify(d);
-          win.location = win.location.href.replace(globals.location.hash, '') + hash;
-        }
-      };
-
       return myproxy;
 
     })();
+    handleProxyMessage = function(e) {
+      var d, id, key, method, myCacheBust, self;
+      d = e.data;
+      if (typeof d === "string") {
+        if (/^xstore-/.test(d)) {
+          d = d.split(",");
+        } else {
+          try {
+            d = JSON.parse(d);
+          } catch (_error) {
+            return;
+          }
+        }
+      }
+      if (!(d instanceof Array)) {
+        return;
+      }
+      id = d[1];
+      if (!/^xstore-/.test(id)) {
+        return;
+      }
+      self = this;
+      key = d[3] || 'xstore';
+      method = d[2];
+      cacheBust = 0;
+      if (method === 'get') {
+        d[4] = store.get(key);
+      } else if (method === 'set') {
+        store.set(key, d[4]);
+      } else if (method === 'remove') {
+        store.remove(key);
+      } else if (method === 'clear') {
+        store.clear();
+      } else {
+        d[2] = 'error-' + method;
+      }
+      if (usePostMessage) {
+        evt.source.postMessage(JSON.stringify(d), evt.origin);
+      } else {
+        cacheBust += 1;
+        myCacheBust = +(new Date) + cacheBust;
+        d[0] = myCacheBust;
+        hash = '#' + JSON.stringify(d);
+        win.location = win.location.href.replace(globals.location.hash, '') + hash;
+      }
+    };
     randomHash = function() {
       var rh;
       rh = Math.random().toString(36).substr(2);
@@ -369,6 +368,8 @@
           proxyPage = proxyPage.replace('http:', 'https:');
         }
         return iframe = load(proxyPage, function() {
+          iframe.style.display = 'block';
+          iframe.setAttribute("id", "frame");
           proxyWin = iframe.contentWindow;
           if (!usePostMessage) {
             hash = proxyWin.location.hash;
