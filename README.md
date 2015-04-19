@@ -27,6 +27,24 @@ Example:
 </script>
 ``` 
 
+xstore uses Marcus Westin store.js which can be found @ https://github.com/marcuswestin/store.js
+
+
+### Emitter#init(options)
+options are: url, dntIgnore
+
+### Emitter#get(key).then(fn, errFn)
+get method return a promise which can be chain with then funciton execution.
+
+### Emitter#set(key, value).then(fn, errFn)
+also return a promise for action completion
+
+### Emitter#clear().then(fn, errFn)
+also return a promise for action completion
+
+### Emitter#remove(key).then(fn, errFn)
+also return a promise for action completion
+
 # WARNING
 Do not use xstore for sensitive data.  Since xstore is a hack for storing data across domain, security will be an issue for storing sensitive data.  If you must store sensitive data, then you should implement some kind of server-side storage.  Alternatively, you can use SaaS service such as firebase or parsed.com to acheive the same goal.
 
