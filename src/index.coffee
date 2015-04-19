@@ -303,6 +303,6 @@
           onMessage(handleMessageEvent)
 
   win.xstore = new xstore()
-  module.export = win.xstore
+  module.exports = win.xstore
 
 ) window

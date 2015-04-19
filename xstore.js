@@ -419,7 +419,7 @@
 
     })();
     win.xstore = new xstore();
-    return module["export"] = win.xstore;
+    return module.exports = win.xstore;
   })(window);
 
 }).call(this);
