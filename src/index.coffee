@@ -213,8 +213,10 @@
   #
   ###
   class xstore
+    @hasInit: false
     # Function to get localStorage from proxy
     @get: (k) ->
+      @init()
       if (dnt)
         return {
           then: (fn) ->
@@ -224,6 +226,7 @@
 
     # Function to set localStorage on proxy
     @set: (k, v) ->
+      @init()
       if (dnt)
         return {
           then: (fn) ->
@@ -235,6 +238,7 @@
 
     # Function to remove on proxy
     @remove: (k) ->
+      @init()
       if (dnt)
         return {
           then: (fn) ->
@@ -246,6 +250,7 @@
 
     # Function to clear on proxy
     @clear: () ->
+      @init()
       if (dnt)
         return {
           then: (fn) ->
@@ -256,6 +261,11 @@
       (new mydeferred()).q('clear')
 
     @init: (options) ->
+      self = @
+      if (self.hasInit) 
+        return self
+
+      self.hasInit = true
       options = options or {}
       if (options.isProxy)
         (new myproxy()).init()

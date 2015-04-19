@@ -1,12 +1,4 @@
-(function umd(require){
-  if ('object' == typeof exports) {
-    module.exports = require('1');
-  } else if ('function' == typeof define && define.amd) {
-    define(function(){ return require('1'); });
-  } else {
-    this['xstore'] = require('1');
-  }
-})((function outer(modules, cache, entries){
+(function outer(modules, cache, entries){
 
   /**
    * Global
@@ -321,7 +313,10 @@
     xstore = (function() {
       function xstore() {}
 
+      xstore.hasInit = false;
+
       xstore.get = function(k) {
+        this.init();
         if (dnt) {
           return {
             then: function(fn) {
@@ -335,6 +330,7 @@
       };
 
       xstore.set = function(k, v) {
+        this.init();
         if (dnt) {
           return {
             then: function(fn) {
@@ -350,6 +346,7 @@
       };
 
       xstore.remove = function(k) {
+        this.init();
         if (dnt) {
           return {
             then: function(fn) {
@@ -364,6 +361,7 @@
       };
 
       xstore.clear = function() {
+        this.init();
         if (dnt) {
           return {
             then: function(fn) {
@@ -376,6 +374,12 @@
       };
 
       xstore.init = function(options) {
+        var self;
+        self = this;
+        if (self.hasInit) {
+          return self;
+        }
+        self.hasInit = true;
         options = options || {};
         if (options.isProxy) {
           (new myproxy()).init();
@@ -1118,4 +1122,3 @@ module.exports = function(obj, fn){
 })(Function('return this')());
 
 }, {}]}, {}, {"1":""})
-);
