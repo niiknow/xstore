@@ -93,9 +93,14 @@
 1: [function(require, module, exports) {
 (function() {
   (function(win) {
-    var Deferred, cacheBust, createPromise, deferredObject, delay, doc, handleMessageEvent, hash, iframe, load, myproxy, onMessage, proxyPage, proxyWin, randomHash, storageKey, usePostMessage, xstore;
+    var Deferred, Queue, cacheBust, createPromise, deferredObject, delay, doPostMessage, doc, handleMessageEvent, hash, iframe, load, myproxy, onMessage, proxyPage, proxyWin, q, randomHash, storageKey, usePostMessage, xstore;
     doc = win.document;
     load = require('load-iframe');
+    Queue = require('queue');
+    q = new Queue({
+      concurrency: 1,
+      timeout: 350
+    });
     proxyPage = 'http://niiknow.github.io/xstore/xstore.html';
     storageKey = 'xstore';
     deferredObject = {};
@@ -107,7 +112,7 @@
     delay = 333;
     onMessage = function(fn) {
       if (doc.addEventListener) {
-        return doc.addEventListener("message", fn);
+        return doc.addEventListener("message", fn, false);
       } else {
         return doc.attachEvent("onmessage", fn);
       }
@@ -259,6 +264,15 @@
       rh = Math.random().toString(36).substr(2);
       return "xstore-" + rh;
     };
+    doPostMessage = function(msg) {
+      if ((proxyWin != null)) {
+        proxyWin.postMessage(msg, '*');
+        return;
+      }
+      return q.push(function() {
+        return doPostMessage(msg);
+      });
+    };
     createPromise = function(event, item) {
       return function(resolve, reject) {
         var d, deferredHash;
@@ -269,7 +283,7 @@
           reject: reject
         };
         if (usePostMessage) {
-          proxyWin.postMessage(JSON.stringify(d), '*');
+          doPostMessage(JSON.stringify(d));
         } else {
           if (iframe !== null) {
             cacheBust += 1;
@@ -331,8 +345,7 @@
 
       xstore.set = function(k, v) {
         return (new Deferred).promise(createPromise('set', {
-          'k': k
-        }, {
+          'k': k,
           'v': v
         }));
       };
@@ -346,6 +359,7 @@
       };
 
       xstore.init = function(options) {
+        options = options || {};
         if (options.isProxy) {
           (new myproxy()).init();
           return;
@@ -354,25 +368,23 @@
         if (win.location.protocol === 'https') {
           proxyPage = proxyPage.replace('http:', 'https:');
         }
-        return iframe = load("" + proxyPage, (function(_this) {
-          return function() {
-            proxyWin = iframe.contentWindow;
-            if (!usePostMessage) {
-              hash = proxyWin.location.hash;
-              return setInterval((function() {
-                if (proxyWin.location.hash !== hash) {
-                  hash = proxyWin.location.hash;
-                  handleMessageEvent({
-                    origin: proxyDomain,
-                    data: hash.substr(1)
-                  });
-                }
-              }), delay);
-            } else {
-              return onMessage(handleMessageEvent);
-            }
-          };
-        })(this));
+        return iframe = load(proxyPage, function() {
+          proxyWin = iframe.contentWindow;
+          if (!usePostMessage) {
+            hash = proxyWin.location.hash;
+            return setInterval((function() {
+              if (proxyWin.location.hash !== hash) {
+                hash = proxyWin.location.hash;
+                handleMessageEvent({
+                  origin: proxyDomain,
+                  data: hash.substr(1)
+                });
+              }
+            }), delay);
+          } else {
+            return onMessage(handleMessageEvent);
+          }
+        });
       };
 
       return xstore;
@@ -384,7 +396,7 @@
 
 }).call(this);
 
-}, {"load-iframe":2}],
+}, {"load-iframe":2,"queue":3}],
 2: [function(require, module, exports) {
 
 /**
@@ -447,8 +459,8 @@ module.exports = function loadIframe(options, fn){
   // give it an ID or attributes.
   return iframe;
 };
-}, {"script-onload":3,"next-tick":4,"type":5}],
-3: [function(require, module, exports) {
+}, {"script-onload":4,"next-tick":5,"type":6}],
+4: [function(require, module, exports) {
 
 // https://github.com/thirdpartyjs/thirdpartyjs-code/blob/master/examples/templates/02/loading-files/index.html
 
@@ -504,7 +516,7 @@ function attach(el, fn){
 }
 
 }, {}],
-4: [function(require, module, exports) {
+5: [function(require, module, exports) {
 "use strict"
 
 if (typeof setImmediate == 'function') {
@@ -540,7 +552,7 @@ else if (typeof window == 'undefined' || window.ActiveXObject || !window.postMes
 }
 
 }, {}],
-5: [function(require, module, exports) {
+6: [function(require, module, exports) {
 /**
  * toString ref.
  */
@@ -574,6 +586,333 @@ module.exports = function(val){
     : Object.prototype.valueOf.apply(val)
 
   return typeof val;
+};
+
+}, {}],
+3: [function(require, module, exports) {
+
+/**
+ * Module dependencies.
+ */
+
+var Emitter;
+var bind;
+
+try {
+  Emitter = require('component-emitter');
+  bind = require('component-bind');
+} catch (err) {
+  Emitter = require('emitter');
+  bind = require('bind');
+}
+
+/**
+ * Expose `Queue`.
+ */
+
+module.exports = Queue;
+
+/**
+ * Initialize a `Queue` with the given options:
+ *
+ *  - `concurrency` [1]
+ *  - `timeout` [0]
+ *
+ * @param {Object} options
+ * @api public
+ */
+
+function Queue(options) {
+  options = options || {};
+  this.timeout = options.timeout || 0;
+  this.concurrency = options.concurrency || 1;
+  this.pending = 0;
+  this.jobs = [];
+}
+
+/**
+ * Mixin emitter.
+ */
+
+Emitter(Queue.prototype);
+
+/**
+ * Return queue length.
+ *
+ * @return {Number}
+ * @api public
+ */
+
+Queue.prototype.length = function(){
+  return this.pending + this.jobs.length;
+};
+
+/**
+ * Queue `fn` for execution.
+ *
+ * @param {Function} fn
+ * @param {Function} [cb]
+ * @api public
+ */
+
+Queue.prototype.push = function(fn, cb){
+  this.jobs.push([fn, cb]);
+  setTimeout(bind(this, this.run), 0);
+};
+
+/**
+ * Run jobs at the specified concurrency.
+ *
+ * @api private
+ */
+
+Queue.prototype.run = function(){
+  while (this.pending < this.concurrency) {
+    var job = this.jobs.shift();
+    if (!job) break;
+    this.exec(job);
+  }
+};
+
+/**
+ * Execute `job`.
+ *
+ * @param {Array} job
+ * @api private
+ */
+
+Queue.prototype.exec = function(job){
+  var self = this;
+  var ms = this.timeout;
+
+  var fn = job[0];
+  var cb = job[1];
+  if (ms) fn = timeout(fn, ms);
+
+  this.pending++;
+  fn(function(err, res){
+    cb && cb(err, res);
+    self.pending--;
+    self.run();
+  });
+};
+
+/**
+ * Decorate `fn` with a timeout of `ms`.
+ *
+ * @param {Function} fn
+ * @param {Function} ms
+ * @return {Function}
+ * @api private
+ */
+
+function timeout(fn, ms) {
+  return function(cb){
+    var done;
+
+    var id = setTimeout(function(){
+      done = true;
+      var err = new Error('Timeout of ' + ms + 'ms exceeded');
+      err.timeout = timeout;
+      cb(err);
+    }, ms);
+
+    fn(function(err, res){
+      if (done) return;
+      clearTimeout(id);
+      cb(err, res);
+    });
+  }
+}
+
+}, {"component-emitter":7,"component-bind":8,"emitter":7,"bind":8}],
+7: [function(require, module, exports) {
+
+/**
+ * Expose `Emitter`.
+ */
+
+module.exports = Emitter;
+
+/**
+ * Initialize a new `Emitter`.
+ *
+ * @api public
+ */
+
+function Emitter(obj) {
+  if (obj) return mixin(obj);
+};
+
+/**
+ * Mixin the emitter properties.
+ *
+ * @param {Object} obj
+ * @return {Object}
+ * @api private
+ */
+
+function mixin(obj) {
+  for (var key in Emitter.prototype) {
+    obj[key] = Emitter.prototype[key];
+  }
+  return obj;
+}
+
+/**
+ * Listen on the given `event` with `fn`.
+ *
+ * @param {String} event
+ * @param {Function} fn
+ * @return {Emitter}
+ * @api public
+ */
+
+Emitter.prototype.on =
+Emitter.prototype.addEventListener = function(event, fn){
+  this._callbacks = this._callbacks || {};
+  (this._callbacks['$' + event] = this._callbacks['$' + event] || [])
+    .push(fn);
+  return this;
+};
+
+/**
+ * Adds an `event` listener that will be invoked a single
+ * time then automatically removed.
+ *
+ * @param {String} event
+ * @param {Function} fn
+ * @return {Emitter}
+ * @api public
+ */
+
+Emitter.prototype.once = function(event, fn){
+  function on() {
+    this.off(event, on);
+    fn.apply(this, arguments);
+  }
+
+  on.fn = fn;
+  this.on(event, on);
+  return this;
+};
+
+/**
+ * Remove the given callback for `event` or all
+ * registered callbacks.
+ *
+ * @param {String} event
+ * @param {Function} fn
+ * @return {Emitter}
+ * @api public
+ */
+
+Emitter.prototype.off =
+Emitter.prototype.removeListener =
+Emitter.prototype.removeAllListeners =
+Emitter.prototype.removeEventListener = function(event, fn){
+  this._callbacks = this._callbacks || {};
+
+  // all
+  if (0 == arguments.length) {
+    this._callbacks = {};
+    return this;
+  }
+
+  // specific event
+  var callbacks = this._callbacks['$' + event];
+  if (!callbacks) return this;
+
+  // remove all handlers
+  if (1 == arguments.length) {
+    delete this._callbacks['$' + event];
+    return this;
+  }
+
+  // remove specific handler
+  var cb;
+  for (var i = 0; i < callbacks.length; i++) {
+    cb = callbacks[i];
+    if (cb === fn || cb.fn === fn) {
+      callbacks.splice(i, 1);
+      break;
+    }
+  }
+  return this;
+};
+
+/**
+ * Emit `event` with the given args.
+ *
+ * @param {String} event
+ * @param {Mixed} ...
+ * @return {Emitter}
+ */
+
+Emitter.prototype.emit = function(event){
+  this._callbacks = this._callbacks || {};
+  var args = [].slice.call(arguments, 1)
+    , callbacks = this._callbacks['$' + event];
+
+  if (callbacks) {
+    callbacks = callbacks.slice(0);
+    for (var i = 0, len = callbacks.length; i < len; ++i) {
+      callbacks[i].apply(this, args);
+    }
+  }
+
+  return this;
+};
+
+/**
+ * Return array of callbacks for `event`.
+ *
+ * @param {String} event
+ * @return {Array}
+ * @api public
+ */
+
+Emitter.prototype.listeners = function(event){
+  this._callbacks = this._callbacks || {};
+  return this._callbacks['$' + event] || [];
+};
+
+/**
+ * Check if this emitter has `event` handlers.
+ *
+ * @param {String} event
+ * @return {Boolean}
+ * @api public
+ */
+
+Emitter.prototype.hasListeners = function(event){
+  return !! this.listeners(event).length;
+};
+
+}, {}],
+8: [function(require, module, exports) {
+/**
+ * Slice reference.
+ */
+
+var slice = [].slice;
+
+/**
+ * Bind `obj` to `fn`.
+ *
+ * @param {Object} obj
+ * @param {Function|String} fn or string
+ * @return {Function}
+ * @api public
+ */
+
+module.exports = function(obj, fn){
+  if ('string' == typeof fn) fn = obj[fn];
+  if ('function' != typeof fn) throw new Error('bind() requires a function');
+  var args = slice.call(arguments, 2);
+  return function(){
+    return fn.apply(obj, args.concat(slice.call(arguments)));
+  }
 };
 
 }, {}]}, {}, {"1":""})

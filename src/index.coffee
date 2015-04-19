@@ -1,6 +1,8 @@
 ((win) ->
   doc = win.document
   load = require('load-iframe')
+  Queue = require('queue')
+  q = new Queue({ concurrency: 1, timeout: 350 });
 
   # Setting - The base domain of the proxy
   proxyPage = 'http://niiknow.github.io/xstore/xstore.html'
@@ -16,7 +18,7 @@
   #cross browser event handler names
   onMessage = (fn) ->
     if doc.addEventListener
-      doc.addEventListener "message", fn
+      doc.addEventListener "message", fn, false
     else
       doc.attachEvent "onmessage", fn
 
@@ -143,8 +145,14 @@
     rh = Math.random().toString(36).substr 2
     return "xstore-#{rh}"
 
-  # Helper to create the functions for promises
+  doPostMessage = (msg) ->
+    if (proxyWin?)
+      proxyWin.postMessage msg, '*'
+      return
+    q.push ->
+      doPostMessage msg
 
+  # Helper to create the functions for promises
   createPromise = (event, item) ->
     (resolve, reject) ->
       # Message to set the storage
@@ -161,7 +169,7 @@
       # Send the message and target URI
       if usePostMessage
         # Post the message as JSON
-        proxyWin.postMessage JSON.stringify(d), '*'
+        doPostMessage JSON.stringify(d)
       else
         # postMessage not available so set hash
         if iframe != null
@@ -226,9 +234,7 @@
 
     # Function to set localStorage on proxy
     @set: (k, v) ->
-      (new Deferred).promise(createPromise('set',
-        'k': k
-      'v': v))
+      (new Deferred).promise(createPromise('set', {'k': k, 'v': v}))
 
     # Function to remove on proxy
     @remove: (k) ->
@@ -239,17 +245,18 @@
       (new Deferred).promise(createPromise('clear'))
 
     @init: (options) ->
+      options = options or {}
       if (options.isProxy)
         (new myproxy()).init()
         return
 
-      proxyPage = options.url || proxyPage
+      proxyPage = options.url or proxyPage
 
       if (win.location.protocol == 'https')
         proxyPage = proxyPage.replace('http:', 'https:')
 
       # set iFrame attributes
-      iframe = load "#{proxyPage}", =>
+      iframe = load proxyPage, () ->
         proxyWin = iframe.contentWindow
         # If postMessage not supported set up polling for hash change
         if !usePostMessage
@@ -266,6 +273,7 @@
           ), delay
         else 
           onMessage(handleMessageEvent)
+          
 
 
   win.xstore = xstore
