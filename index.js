@@ -247,7 +247,7 @@
           d[2] = 'error-' + method;
         }
         if (usePostMessage) {
-          e.source.postMessage(JSON.stringify(d), e.origin || '*');
+          e.source.postMessage(JSON.stringify(d), '*');
         } else {
           cacheBust += 1;
           myCacheBust = +(new Date) + cacheBust;

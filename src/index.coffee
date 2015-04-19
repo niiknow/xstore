@@ -130,7 +130,7 @@
 
       if usePostMessage
         # Post the return message back as JSON
-        e.source.postMessage JSON.stringify(d), e.origin or '*'
+        e.source.postMessage JSON.stringify(d), '*'
       else
         # Cache bust messages with the same info
         cacheBust += 1
