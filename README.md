@@ -27,7 +27,7 @@ Example:
 </script>
 ``` 
 
-Why re-invent the wheel?  xstore uses various components provided by componentjs and primarily, Marcus Westin store.js @ https://github.com/marcuswestin/store.js
+Why re-invent the wheel?  xstore uses various components provided by componentjs and specifically, Marcus Westin store.js @ https://github.com/marcuswestin/store.js
 
 ### xstore#init(options)
 options are: url, dntIgnore
