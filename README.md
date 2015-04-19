@@ -15,7 +15,7 @@ Example:
 </script>
 ```
 
-You will need to host xstore.min.js and xstore.html on some server if you want to segment your data with other website xstore usage.  This is only for data segmentation and does very little toward security.  A hacker can simply view your source to get your xstore.html location.
+You will need to host xstore.min.js and xstore.html on some server if you want to segment your data from other website xstore usage.  This is only for data segmentation and does very little toward security.  A hacker can simply view your source to get your xstore.html location for access to your data.
 
 Example:
 
