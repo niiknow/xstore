@@ -27,45 +27,57 @@
   # defer/promise class
   #
   ###
-  class Deferred
-    callbacks: []
-    errorbacks: []
-    promise: (func) ->
+  class mydeferred
+    mycallbacks: []
+    myerrorbacks: []
+    promise: (event, item) ->
       self = @
-      if func
-        func self.resolve, self.reject
-      self
+      # Message to set the storage
+      deferredHash = randomHash()
+
+      # [cacheBust, messageid, method, key, value]
+      d = [0, deferredHash, event, item.k, item.v]
+
+      # Set the deferred object reference
+      deferredObject[deferredHash] = self
+
+      # Send the message and target URI
+      if usePostMessage
+        # Post the message as JSON
+        doPostMessage JSON.stringify(d)
+      else
+        # postMessage not available so set hash
+        if iframe != null
+          # Cache bust messages with the same info
+          cacheBust += 1
+          d[0] = +new Date + cacheBust
+          hash = '#' + JSON.stringify(d)
+          if iframe.src
+            iframe.src = "#{proxyPage}#{hash}"
+          else if iframe.contentWindow? and iframe.contentWindow.location?
+            iframe.contentWindow.location = "#{proxyPage}#{hash}"
+          else
+            iframe.setAttribute 'src', "#{proxyPage}#{hash}"
+      return self
 
     then: (callback, errorback) ->
       self = @
       if errorback
-        self.errorbacks[self.callbacks.length] = errorback
-      self.callbacks.push callback
+        self.myerrorbacks.push errorback
+      self.mycallbacks.push callback
       self
 
-    resolve: (data) ->
+    myresolve: (data) ->
       self = @
-      i = 0
-      l = self.callbacks.length
-      i
-      while i < l
-        try
-          data = self.callbacks[i](data)
-        catch e
-          if self.errorbacks[i]
-            self.errorbacks[i] e
-          else
-            throw new Error(e)
-        i += 1
+      for v, k in self.mycallbacks or []
+        v data
       self
 
-    reject: (e) ->
-      self = @
-      if self.errorbacks.length
-        self.errorbacks[self.errorbacks.length] e
-      else
-        throw new Error(e)
-      return
+    myreject: (e) ->
+       self = @
+      for v, k in self.myerrorbacks or []
+        v data
+      self
   
   class myproxy
     # Post message not supported
@@ -78,14 +90,6 @@
         onMessage(self.handleProxyMessage)
       else
         # Poll for hash changes
-        setInterval (->
-          newhash = win.location.hash
-          if newhash != hash
-            # Set new hash
-            hash = newhash
-            self.handleProxyMessage data: JSON.parse(newhash.substr(1))
-          return
-        ), self.delay
 
     handleProxyMessage: (e) ->
       d = e.data
@@ -128,6 +132,8 @@
       else
         d[2] = 'error-' + method 
 
+      d[1] = id.replace('xstore-', 'xstoreproxy')
+
       if usePostMessage
         # Post the return message back as JSON
         e.source.postMessage JSON.stringify(d), '*'
@@ -154,49 +160,15 @@
     q.push ->
       doPostMessage msg
 
-  # Helper to create the functions for promises
-  createPromise = (event, item) ->
-    (resolve, reject) ->
-      # Message to set the storage
-      deferredHash = randomHash()
-
-      # [cacheBust, messageid, method, key, value]
-      d = [0, deferredHash, event, item.k, item.v]
-
-      # Set the deferred object reference
-      deferredObject[deferredHash] =
-        resolve: resolve
-        reject: reject
-
-      # Send the message and target URI
-      if usePostMessage
-        # Post the message as JSON
-        doPostMessage JSON.stringify(d)
-      else
-        # postMessage not available so set hash
-        if iframe != null
-          # Cache bust messages with the same info
-          cacheBust += 1
-          d[0] = +new Date + cacheBust
-          hash = '#' + JSON.stringify(d)
-          if iframe.src
-            iframe.src = "#{proxyPage}#{hash}"
-          else if iframe.contentWindow? and iframe.contentWindow.location?
-            iframe.contentWindow.location = "#{proxyPage}#{hash}"
-          else
-            iframe.setAttribute 'src', "#{proxyPage}#{hash}"
-      return
-
-
   handleMessageEvent = (e) ->
     d = e.data
 
     if typeof d is "string"
       #IE will "toString()" the array, this reverses that action
-      if /^xstore-/.test d
+      if /^xstoreproxy-/.test d
         d = d.split ","
       #this browser must json encode postmessages
-      else if jsonEncode
+      else
         try d = JSON.parse d
         catch
           return
@@ -208,19 +180,20 @@
 
     #return unless lead by an xstore id
     id = d[1]
-    unless /^xstore-/.test id
+    unless /^xstoreproxy-/.test id
       return
-
+      
+    id = id.replace('xstoreproxy-', 'xstore-')
     di = deferredObject[id]
 
     # if there is a deferred object resolve and remove
     if di
       if /^error-/.test d[2]
         # Reject if error                        
-        di.reject d[2]
+        di.myreject d[2]
       else
         # Resolve the deferred object
-        di.reject d[4]
+        di.myresolve d[4]
       # Remove the deferred item
       delete deferredObject[id]
 
@@ -232,19 +205,19 @@
   class xstore
     # Function to get localStorage from proxy
     @get: (k) ->
-      (new Deferred).promise(createPromise('get', k))
+      (new mydeferred()).promise('get', k)
 
     # Function to set localStorage on proxy
     @set: (k, v) ->
-      (new Deferred).promise(createPromise('set', {'k': k, 'v': v}))
+      (new mydeferred()).promise('set', {'k': k, 'v': v})
 
     # Function to remove on proxy
     @remove: (k) ->
-      (new Deferred).promise(createPromise('remove', k))
+      (new mydeferred()).promise('remove', k)
 
     # Function to clear on proxy
     @clear: () ->
-      (new Deferred).promise(createPromise('clear'))
+      (new mydeferred()).promise('clear')
 
     @init: (options) ->
       options = options or {}
@@ -265,15 +238,7 @@
         if !usePostMessage
           # Poll for hash changes
           hash = proxyWin.location.hash
-          setInterval (->
-            if proxyWin.location.hash != hash
-              # Set new hash
-              hash = proxyWin.location.hash
-              handleMessageEvent
-                origin: proxyDomain
-                data: hash.substr(1)
-            return
-          ), delay
+
         else 
           onMessage(handleMessageEvent)
 

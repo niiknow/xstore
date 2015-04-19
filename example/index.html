@@ -16,7 +16,7 @@
 	  xstore.init();
       xstore.set('a', 'b').then(function() {
       	console.log('set success')
-      	xstore.get(a).then(function(o){
+      	xstore.get('a').then(function(o){
       		console.log(o);
       	});
       });

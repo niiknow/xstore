@@ -93,7 +93,7 @@
 1: [function(require, module, exports) {
 (function() {
   (function(win) {
-    var Deferred, Queue, cacheBust, createPromise, deferredObject, delay, doPostMessage, doc, handleMessageEvent, hash, iframe, load, myproxy, onMessage, proxyPage, proxyWin, q, randomHash, storageKey, store, usePostMessage, xstore;
+    var Queue, cacheBust, deferredObject, delay, doPostMessage, doc, handleMessageEvent, hash, iframe, load, mydeferred, myproxy, onMessage, proxyPage, proxyWin, q, randomHash, storageKey, store, usePostMessage, xstore;
     doc = win.document;
     load = require('load-iframe');
     Queue = require('queue');
@@ -123,65 +123,75 @@
      * defer/promise class
     #
      */
-    Deferred = (function() {
-      function Deferred() {}
+    mydeferred = (function() {
+      var i, k, len, ref, v;
 
-      Deferred.prototype.callbacks = [];
+      function mydeferred() {}
 
-      Deferred.prototype.errorbacks = [];
+      mydeferred.prototype.mycallbacks = [];
 
-      Deferred.prototype.promise = function(func) {
-        var self;
+      mydeferred.prototype.myerrorbacks = [];
+
+      mydeferred.prototype.promise = function(event, item) {
+        var d, deferredHash, self;
         self = this;
-        if (func) {
-          func(self.resolve, self.reject);
+        deferredHash = randomHash();
+        d = [0, deferredHash, event, item.k, item.v];
+        deferredObject[deferredHash] = self;
+        if (usePostMessage) {
+          doPostMessage(JSON.stringify(d));
+        } else {
+          if (iframe !== null) {
+            cacheBust += 1;
+            d[0] = +(new Date) + cacheBust;
+            hash = '#' + JSON.stringify(d);
+            if (iframe.src) {
+              iframe.src = "" + proxyPage + hash;
+            } else if ((iframe.contentWindow != null) && (iframe.contentWindow.location != null)) {
+              iframe.contentWindow.location = "" + proxyPage + hash;
+            } else {
+              iframe.setAttribute('src', "" + proxyPage + hash);
+            }
+          }
         }
         return self;
       };
 
-      Deferred.prototype.then = function(callback, errorback) {
+      mydeferred.prototype.then = function(callback, errorback) {
         var self;
         self = this;
         if (errorback) {
-          self.errorbacks[self.callbacks.length] = errorback;
+          self.myerrorbacks.push(errorback);
         }
-        self.callbacks.push(callback);
+        self.mycallbacks.push(callback);
         return self;
       };
 
-      Deferred.prototype.resolve = function(data) {
-        var e, i, l, self;
+      mydeferred.prototype.myresolve = function(data) {
+        var i, k, len, ref, self, v;
         self = this;
-        i = 0;
-        l = self.callbacks.length;
-        i;
-        while (i < l) {
-          try {
-            data = self.callbacks[i](data);
-          } catch (_error) {
-            e = _error;
-            if (self.errorbacks[i]) {
-              self.errorbacks[i](e);
-            } else {
-              throw new Error(e);
-            }
-          }
-          i += 1;
+        ref = self.mycallbacks || [];
+        for (k = i = 0, len = ref.length; i < len; k = ++i) {
+          v = ref[k];
+          v(data);
         }
         return self;
       };
 
-      Deferred.prototype.reject = function(e) {
+      mydeferred.prototype.myreject = function(e) {
         var self;
-        self = this;
-        if (self.errorbacks.length) {
-          self.errorbacks[self.errorbacks.length](e);
-        } else {
-          throw new Error(e);
-        }
+        return self = this;
       };
 
-      return Deferred;
+      ref = self.myerrorbacks || [];
+      for (k = i = 0, len = ref.length; i < len; k = ++i) {
+        v = ref[k];
+        v(data);
+      }
+
+      self;
+
+      return mydeferred;
 
     })();
     myproxy = (function() {
@@ -197,16 +207,7 @@
         if (usePostMessage) {
           return onMessage(self.handleProxyMessage);
         } else {
-          return setInterval((function() {
-            var newhash;
-            newhash = win.location.hash;
-            if (newhash !== hash) {
-              hash = newhash;
-              self.handleProxyMessage({
-                data: JSON.parse(newhash.substr(1))
-              });
-            }
-          }), self.delay);
+
         }
       };
 
@@ -246,6 +247,7 @@
         } else {
           d[2] = 'error-' + method;
         }
+        d[1] = id.replace('xstore-', 'xstoreproxy');
         if (usePostMessage) {
           e.source.postMessage(JSON.stringify(d), '*');
         } else {
@@ -274,40 +276,13 @@
         return doPostMessage(msg);
       });
     };
-    createPromise = function(event, item) {
-      return function(resolve, reject) {
-        var d, deferredHash;
-        deferredHash = randomHash();
-        d = [0, deferredHash, event, item.k, item.v];
-        deferredObject[deferredHash] = {
-          resolve: resolve,
-          reject: reject
-        };
-        if (usePostMessage) {
-          doPostMessage(JSON.stringify(d));
-        } else {
-          if (iframe !== null) {
-            cacheBust += 1;
-            d[0] = +(new Date) + cacheBust;
-            hash = '#' + JSON.stringify(d);
-            if (iframe.src) {
-              iframe.src = "" + proxyPage + hash;
-            } else if ((iframe.contentWindow != null) && (iframe.contentWindow.location != null)) {
-              iframe.contentWindow.location = "" + proxyPage + hash;
-            } else {
-              iframe.setAttribute('src', "" + proxyPage + hash);
-            }
-          }
-        }
-      };
-    };
     handleMessageEvent = function(e) {
       var d, di, id;
       d = e.data;
       if (typeof d === "string") {
-        if (/^xstore-/.test(d)) {
+        if (/^xstoreproxy-/.test(d)) {
           d = d.split(",");
-        } else if (jsonEncode) {
+        } else {
           try {
             d = JSON.parse(d);
           } catch (_error) {
@@ -319,15 +294,16 @@
         return;
       }
       id = d[1];
-      if (!/^xstore-/.test(id)) {
+      if (!/^xstoreproxy-/.test(id)) {
         return;
       }
+      id = id.replace('xstoreproxy-', 'xstore-');
       di = deferredObject[id];
       if (di) {
         if (/^error-/.test(d[2])) {
-          di.reject(d[2]);
+          di.myreject(d[2]);
         } else {
-          di.reject(d[4]);
+          di.myresolve(d[4]);
         }
         return delete deferredObject[id];
       }
@@ -341,22 +317,22 @@
       function xstore() {}
 
       xstore.get = function(k) {
-        return (new Deferred).promise(createPromise('get', k));
+        return (new mydeferred()).promise('get', k);
       };
 
       xstore.set = function(k, v) {
-        return (new Deferred).promise(createPromise('set', {
+        return (new mydeferred()).promise('set', {
           'k': k,
           'v': v
-        }));
+        });
       };
 
       xstore.remove = function(k) {
-        return (new Deferred).promise(createPromise('remove', k));
+        return (new mydeferred()).promise('remove', k);
       };
 
       xstore.clear = function() {
-        return (new Deferred).promise(createPromise('clear'));
+        return (new mydeferred()).promise('clear');
       };
 
       xstore.init = function(options) {
@@ -373,16 +349,7 @@
           iframe.setAttribute("id", "xstore");
           proxyWin = iframe.contentWindow;
           if (!usePostMessage) {
-            hash = proxyWin.location.hash;
-            return setInterval((function() {
-              if (proxyWin.location.hash !== hash) {
-                hash = proxyWin.location.hash;
-                handleMessageEvent({
-                  origin: proxyDomain,
-                  data: hash.substr(1)
-                });
-              }
-            }), delay);
+            return hash = proxyWin.location.hash;
           } else {
             return onMessage(handleMessageEvent);
           }
