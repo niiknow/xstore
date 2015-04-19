@@ -27,8 +27,7 @@ Example:
 </script>
 ``` 
 
-xstore uses Marcus Westin store.js which can be found @ https://github.com/marcuswestin/store.js
-
+Why re-invent the wheel?  xstore uses various components provided by componentjs and primarily, Marcus Westin store.js @ https://github.com/marcuswestin/store.js
 
 ### xstore#init(options)
 options are: url, dntIgnore
@@ -49,4 +48,4 @@ also return a promise for action completion
 Do not use xstore for sensitive data.  Since xstore is a hack for storing data across domain, security will be an issue for storing sensitive data.  If you must store sensitive data, then you should implement some kind of server-side storage.  Alternatively, you can use SaaS service such as firebase or parsed.com to acheive the same goal.
 
 # Disclaimer
-* This code is provided AS-IS under the knowledge that data type, storage, and security is the responsibility of the end-user.  Effort has also been made in this document to warn user of security issue with storing of sensitive data.  The author is in NO WAY responsible for issue such as sensitive data breach, as a result of the using this code.
+This code is provided AS-IS under the knowledge that data type, storage, and security is the responsibility of the end-user.  Effort has also been made in this document to warn user of security issue with storing of sensitive data.  The author is in NO WAY responsible for issue such as sensitive data breach, as a result of the using this code.
