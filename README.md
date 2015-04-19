@@ -33,7 +33,13 @@ Why re-invent the wheel?  xstore uses various components provided by componentjs
 options are: url, dntIgnore
 
 ### xstore#get(key).then(fn, errFn)
-get method return a promise which can be chain with then funciton execution.
+get method return a promise which can be chain with then function execution.
+
+```
+xstore.get('x').then(function(data){
+	console.log(data);
+});
+```
 
 ### xstore#set(key, value).then(fn, errFn)
 also return a promise for action completion
@@ -48,4 +54,4 @@ also return a promise for action completion
 Do not use xstore for sensitive data.  Since xstore is a hack for storing data across domain, security will be an issue for storing sensitive data.  If you must store sensitive data, then you should implement some kind of server-side storage.  Alternatively, you can use SaaS service such as firebase or parsed.com to acheive the same goal.
 
 # Disclaimer
-This code is provided AS-IS under the knowledge that data type, storage, and security is the responsibility of the end-user.  Effort has also been made in this document to warn user of security issue with storing of sensitive data.  The author is in NO WAY responsible for issue such as sensitive data breach, as a result of the using this code.
+This code is provided AS-IS under the knowledge that data type, storage, and security is the responsibility of the end-user.  Effort has also been made in this document to warn user of security issue with storing of sensitive data.  The author is in NO WAY responsible for issue such as sensitive data breach as a result of the using this code.
