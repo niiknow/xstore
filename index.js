@@ -247,7 +247,7 @@
           d[2] = 'error-' + method;
         }
         if (usePostMessage) {
-          e.source.postMessage(JSON.stringify(d), e.origin);
+          e.source.postMessage(JSON.stringify(d), e.origin || '*');
         } else {
           cacheBust += 1;
           myCacheBust = +(new Date) + cacheBust;
@@ -370,7 +370,6 @@
           proxyPage = proxyPage.replace('http:', 'https:');
         }
         return iframe = load(proxyPage, function() {
-          iframe.style.display = 'block';
           iframe.setAttribute("id", "xstore");
           proxyWin = iframe.contentWindow;
           if (!usePostMessage) {
