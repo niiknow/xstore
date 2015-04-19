@@ -213,9 +213,9 @@
   #
   ###
   class xstore
-    @hasInit: false
+    hasInit: false
     # Function to get localStorage from proxy
-    @get: (k) ->
+    get: (k) ->
       @init()
       if (dnt)
         return {
@@ -225,7 +225,7 @@
       (new mydeferred()).q('get', {'k': k})
 
     # Function to set localStorage on proxy
-    @set: (k, v) ->
+    set: (k, v) ->
       @init()
       if (dnt)
         return {
@@ -237,7 +237,7 @@
       (new mydeferred()).q('set', {'k': k, 'v': v})
 
     # Function to remove on proxy
-    @remove: (k) ->
+    remove: (k) ->
       @init()
       if (dnt)
         return {
@@ -249,7 +249,7 @@
       (new mydeferred()).q('remove', {'k': k})
 
     # Function to clear on proxy
-    @clear: () ->
+    clear: () ->
       @init()
       if (dnt)
         return {
@@ -260,7 +260,7 @@
 
       (new mydeferred()).q('clear')
 
-    @init: (options) ->
+    init: (options) ->
       self = @
       if (self.hasInit) 
         return self
@@ -302,7 +302,7 @@
         else 
           onMessage(handleMessageEvent)
 
-  win.xstore = xstore
-  module.export = xstore
+  win.xstore = new xstore()
+  module.export = win.xstore
 
 ) window

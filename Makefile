@@ -18,7 +18,8 @@ DUOT = $(BINS)/duo-test -p test/server -R spec -P $(PORT) -c "make build.js"
 # Default target.
 #
 
-default: build.js
+default: xstore.js
+default: lib/index.js
 
 #
 # Clean.
@@ -27,6 +28,7 @@ default: build.js
 clean:
 	@rm -rf components $(BUILD)
 	@rm -f xstore.js xstore.min.js
+	@rm -rf lib
 	@rm -rf node_modules npm-debug.log
 #
 # Test with phantomjs.
@@ -70,6 +72,13 @@ test-browser: $(BUILD)
 xstore.js: node_modules $(SRC)
 	@$(DUO) --use duo-coffee src/index.coffee > xstore.js
 	@$(MINIFY) xstore.js --output xstore.min.js
+
+#
+# Target for `*.js` file.
+#
+
+lib/%.js: node_modules $(SRC)
+	node_modules/coffee-script/bin/coffee --bare -c -o $(@D) $(patsubst lib/%,src/%,$(patsubst %.js,%.coffee,$@))
 
 #
 # Target for `node_modules` folder.

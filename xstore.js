@@ -313,9 +313,9 @@
     xstore = (function() {
       function xstore() {}
 
-      xstore.hasInit = false;
+      xstore.prototype.hasInit = false;
 
-      xstore.get = function(k) {
+      xstore.prototype.get = function(k) {
         this.init();
         if (dnt) {
           return {
@@ -329,7 +329,7 @@
         });
       };
 
-      xstore.set = function(k, v) {
+      xstore.prototype.set = function(k, v) {
         this.init();
         if (dnt) {
           return {
@@ -345,7 +345,7 @@
         });
       };
 
-      xstore.remove = function(k) {
+      xstore.prototype.remove = function(k) {
         this.init();
         if (dnt) {
           return {
@@ -360,7 +360,7 @@
         });
       };
 
-      xstore.clear = function() {
+      xstore.prototype.clear = function() {
         this.init();
         if (dnt) {
           return {
@@ -373,7 +373,7 @@
         return (new mydeferred()).q('clear');
       };
 
-      xstore.init = function(options) {
+      xstore.prototype.init = function(options) {
         var self;
         self = this;
         if (self.hasInit) {
@@ -418,8 +418,8 @@
       return xstore;
 
     })();
-    win.xstore = xstore;
-    return module["export"] = xstore;
+    win.xstore = new xstore();
+    return module["export"] = win.xstore;
   })(window);
 
 }).call(this);
