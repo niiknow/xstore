@@ -9,7 +9,6 @@
     "web"
   ],
   "dependencies": {
-    "component/queue": "*",
     "segmentio/load-iframe": "*",
     "marcuswestin/store.js": "*"
   },

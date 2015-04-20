@@ -85,10 +85,9 @@
 1: [function(require, module, exports) {
 (function() {
   (function(win) {
-    var Queue, cacheBust, deferredObject, delay, dnt, doPostMessage, doc, handleMessageEvent, hash, iframe, load, lstore, mydeferred, myproxy, onMessage, proxyPage, proxyWin, q, randomHash, store, usePostMessage, xstore;
+    var cacheBust, deferredObject, delay, dnt, doPostMessage, doc, handleMessageEvent, hash, iframe, load, lstore, mydeferred, myproxy, myq, onMessage, proxyPage, proxyWin, q, randomHash, store, usePostMessage, xstore;
     doc = win.document;
     load = require('load-iframe');
-    Queue = require('queue');
     store = require('store.js');
     proxyPage = 'http://niiknow.github.io/xstore/xstore.html';
     deferredObject = {};
@@ -99,10 +98,12 @@
     hash = void 0;
     delay = 333;
     lstore = {};
-    q = new Queue({
-      concurrency: 1,
-      timeout: delay + 5
-    });
+    myq = [];
+    q = setInterval(function() {
+      if (myq.length > 0) {
+        return myq.shift()();
+      }
+    }, delay + 5);
     dnt = win.navigator.doNotTrack || navigator.msDoNotTrack || win.doNotTrack;
     onMessage = function(fn) {
       if (win.addEventListener) {
@@ -266,10 +267,11 @@
     };
     doPostMessage = function(msg) {
       if ((proxyWin != null)) {
+        clearInterval(q);
         proxyWin.postMessage(msg, '*');
         return;
       }
-      return q.push(function() {
+      return myq.push(function() {
         return doPostMessage(msg);
       });
     };
@@ -424,7 +426,7 @@
 
 }).call(this);
 
-}, {"load-iframe":2,"queue":3,"store.js":4}],
+}, {"load-iframe":2,"store.js":3}],
 2: [function(require, module, exports) {
 
 /**
@@ -487,8 +489,8 @@ module.exports = function loadIframe(options, fn){
   // give it an ID or attributes.
   return iframe;
 };
-}, {"script-onload":5,"next-tick":6,"type":7}],
-5: [function(require, module, exports) {
+}, {"script-onload":4,"next-tick":5,"type":6}],
+4: [function(require, module, exports) {
 
 // https://github.com/thirdpartyjs/thirdpartyjs-code/blob/master/examples/templates/02/loading-files/index.html
 
@@ -544,7 +546,7 @@ function attach(el, fn){
 }
 
 }, {}],
-6: [function(require, module, exports) {
+5: [function(require, module, exports) {
 "use strict"
 
 if (typeof setImmediate == 'function') {
@@ -580,7 +582,7 @@ else if (typeof window == 'undefined' || window.ActiveXObject || !window.postMes
 }
 
 }, {}],
-7: [function(require, module, exports) {
+6: [function(require, module, exports) {
 /**
  * toString ref.
  */
@@ -618,333 +620,6 @@ module.exports = function(val){
 
 }, {}],
 3: [function(require, module, exports) {
-
-/**
- * Module dependencies.
- */
-
-var Emitter;
-var bind;
-
-try {
-  Emitter = require('component-emitter');
-  bind = require('component-bind');
-} catch (err) {
-  Emitter = require('emitter');
-  bind = require('bind');
-}
-
-/**
- * Expose `Queue`.
- */
-
-module.exports = Queue;
-
-/**
- * Initialize a `Queue` with the given options:
- *
- *  - `concurrency` [1]
- *  - `timeout` [0]
- *
- * @param {Object} options
- * @api public
- */
-
-function Queue(options) {
-  options = options || {};
-  this.timeout = options.timeout || 0;
-  this.concurrency = options.concurrency || 1;
-  this.pending = 0;
-  this.jobs = [];
-}
-
-/**
- * Mixin emitter.
- */
-
-Emitter(Queue.prototype);
-
-/**
- * Return queue length.
- *
- * @return {Number}
- * @api public
- */
-
-Queue.prototype.length = function(){
-  return this.pending + this.jobs.length;
-};
-
-/**
- * Queue `fn` for execution.
- *
- * @param {Function} fn
- * @param {Function} [cb]
- * @api public
- */
-
-Queue.prototype.push = function(fn, cb){
-  this.jobs.push([fn, cb]);
-  setTimeout(bind(this, this.run), 0);
-};
-
-/**
- * Run jobs at the specified concurrency.
- *
- * @api private
- */
-
-Queue.prototype.run = function(){
-  while (this.pending < this.concurrency) {
-    var job = this.jobs.shift();
-    if (!job) break;
-    this.exec(job);
-  }
-};
-
-/**
- * Execute `job`.
- *
- * @param {Array} job
- * @api private
- */
-
-Queue.prototype.exec = function(job){
-  var self = this;
-  var ms = this.timeout;
-
-  var fn = job[0];
-  var cb = job[1];
-  if (ms) fn = timeout(fn, ms);
-
-  this.pending++;
-  fn(function(err, res){
-    cb && cb(err, res);
-    self.pending--;
-    self.run();
-  });
-};
-
-/**
- * Decorate `fn` with a timeout of `ms`.
- *
- * @param {Function} fn
- * @param {Function} ms
- * @return {Function}
- * @api private
- */
-
-function timeout(fn, ms) {
-  return function(cb){
-    var done;
-
-    var id = setTimeout(function(){
-      done = true;
-      var err = new Error('Timeout of ' + ms + 'ms exceeded');
-      err.timeout = timeout;
-      cb(err);
-    }, ms);
-
-    fn(function(err, res){
-      if (done) return;
-      clearTimeout(id);
-      cb(err, res);
-    });
-  }
-}
-
-}, {"component-emitter":8,"component-bind":9,"emitter":8,"bind":9}],
-8: [function(require, module, exports) {
-
-/**
- * Expose `Emitter`.
- */
-
-module.exports = Emitter;
-
-/**
- * Initialize a new `Emitter`.
- *
- * @api public
- */
-
-function Emitter(obj) {
-  if (obj) return mixin(obj);
-};
-
-/**
- * Mixin the emitter properties.
- *
- * @param {Object} obj
- * @return {Object}
- * @api private
- */
-
-function mixin(obj) {
-  for (var key in Emitter.prototype) {
-    obj[key] = Emitter.prototype[key];
-  }
-  return obj;
-}
-
-/**
- * Listen on the given `event` with `fn`.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.on =
-Emitter.prototype.addEventListener = function(event, fn){
-  this._callbacks = this._callbacks || {};
-  (this._callbacks['$' + event] = this._callbacks['$' + event] || [])
-    .push(fn);
-  return this;
-};
-
-/**
- * Adds an `event` listener that will be invoked a single
- * time then automatically removed.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.once = function(event, fn){
-  function on() {
-    this.off(event, on);
-    fn.apply(this, arguments);
-  }
-
-  on.fn = fn;
-  this.on(event, on);
-  return this;
-};
-
-/**
- * Remove the given callback for `event` or all
- * registered callbacks.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.off =
-Emitter.prototype.removeListener =
-Emitter.prototype.removeAllListeners =
-Emitter.prototype.removeEventListener = function(event, fn){
-  this._callbacks = this._callbacks || {};
-
-  // all
-  if (0 == arguments.length) {
-    this._callbacks = {};
-    return this;
-  }
-
-  // specific event
-  var callbacks = this._callbacks['$' + event];
-  if (!callbacks) return this;
-
-  // remove all handlers
-  if (1 == arguments.length) {
-    delete this._callbacks['$' + event];
-    return this;
-  }
-
-  // remove specific handler
-  var cb;
-  for (var i = 0; i < callbacks.length; i++) {
-    cb = callbacks[i];
-    if (cb === fn || cb.fn === fn) {
-      callbacks.splice(i, 1);
-      break;
-    }
-  }
-  return this;
-};
-
-/**
- * Emit `event` with the given args.
- *
- * @param {String} event
- * @param {Mixed} ...
- * @return {Emitter}
- */
-
-Emitter.prototype.emit = function(event){
-  this._callbacks = this._callbacks || {};
-  var args = [].slice.call(arguments, 1)
-    , callbacks = this._callbacks['$' + event];
-
-  if (callbacks) {
-    callbacks = callbacks.slice(0);
-    for (var i = 0, len = callbacks.length; i < len; ++i) {
-      callbacks[i].apply(this, args);
-    }
-  }
-
-  return this;
-};
-
-/**
- * Return array of callbacks for `event`.
- *
- * @param {String} event
- * @return {Array}
- * @api public
- */
-
-Emitter.prototype.listeners = function(event){
-  this._callbacks = this._callbacks || {};
-  return this._callbacks['$' + event] || [];
-};
-
-/**
- * Check if this emitter has `event` handlers.
- *
- * @param {String} event
- * @return {Boolean}
- * @api public
- */
-
-Emitter.prototype.hasListeners = function(event){
-  return !! this.listeners(event).length;
-};
-
-}, {}],
-9: [function(require, module, exports) {
-/**
- * Slice reference.
- */
-
-var slice = [].slice;
-
-/**
- * Bind `obj` to `fn`.
- *
- * @param {Object} obj
- * @param {Function|String} fn or string
- * @return {Function}
- * @api public
- */
-
-module.exports = function(obj, fn){
-  if ('string' == typeof fn) fn = obj[fn];
-  if ('function' != typeof fn) throw new Error('bind() requires a function');
-  var args = slice.call(arguments, 2);
-  return function(){
-    return fn.apply(obj, args.concat(slice.call(arguments)));
-  }
-};
-
-}, {}],
-4: [function(require, module, exports) {
 ;(function(win){
 	var store = {},
 		doc = win.document,

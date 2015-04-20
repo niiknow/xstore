@@ -1,7 +1,6 @@
 ((win) ->
   doc = win.document
   load = require('load-iframe')
-  Queue = require('queue')
   store = require('store.js')
 
   # Setting - The base domain of the proxy
@@ -14,7 +13,12 @@
   hash = undefined
   delay = 333
   lstore = {}
-  q = new Queue({ concurrency: 1, timeout: delay + 5 });
+  myq = []
+  q = setInterval -> 
+    if myq.length > 0
+      myq.shift()()
+  , delay + 5
+
   dnt = win.navigator.doNotTrack or navigator.msDoNotTrack or win.doNotTrack
 
   #cross browser event handler names
@@ -165,9 +169,10 @@
 
   doPostMessage = (msg) ->
     if (proxyWin?)
+      clearInterval(q)
       proxyWin.postMessage msg, '*'
       return
-    q.push ->
+    myq.push ->
       doPostMessage msg
 
   handleMessageEvent = (e) ->
