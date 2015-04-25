@@ -2,6 +2,7 @@
   doc = win.document
   load = require('load-iframe')
   store = require('store.js')
+  cookie = require('cookie')
 
   # Setting - The base domain of the proxy
   proxyPage = 'http://niiknow.github.io/xstore/xstore.html'
@@ -14,12 +15,13 @@
   delay = 333
   lstore = {}
   myq = []
+  maxStore = 6000 * 60 * 24 * 777
   q = setInterval -> 
     if myq.length > 0
       myq.shift()()
   , delay + 5
 
-  dnt = win.navigator.doNotTrack or navigator.msDoNotTrack or win.doNotTrack
+  dnt = win.navigator.doNotTrack or win.navigator.msDoNotTrack or win.doNotTrack
 
   #cross browser event handler names
   onMessage = (fn) ->
@@ -132,17 +134,32 @@
       key = d[3] or 'xstore'
       method = d[2]
       cacheBust = 0
+      mystore = store
+      if (!store.enabled)
+        mystore = 
+          get: (k) ->
+            return cookie(key)
+          set: (k, v) ->
+            cookie(k, v, { maxage: maxStore })
+          remove: (k) ->
+            cookie(k, null)
+          clear: ->
+            cookies = doc.cookie.split(';')
+            for v, k in cookies
+              idx = v.indexOf('=')
+              name = if idx > -1 then v.substr(0, idx) else v
+              doc.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT'
 
       # If the key exists in storage
       if method == 'get'
         # Get storage object - stringify and send back
-        d[4] = store.get(key)
+        d[4] = mystore.get(key)
       else if method == 'set'
-        store.set(key, d[4])
+        mystore.set(key, d[4])
       else if method == 'remove'
-        store.remove(key)
+        mystore.remove(key)
       else if method == 'clear'
-        store.clear()
+        mystore.clear()
       else
         d[2] = 'error-' + method 
 
@@ -219,6 +236,7 @@
   ###
   class xstore
     hasInit: false
+    lstore: lstore
     # Function to get localStorage from proxy
     get: (k) ->
       @init()

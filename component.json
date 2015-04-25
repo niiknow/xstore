@@ -9,6 +9,7 @@
     "web"
   ],
   "dependencies": {
+    "component/cookie": "*",
     "segmentio/load-iframe": "*",
     "marcuswestin/store.js": "*"
   },
