@@ -20,7 +20,8 @@ COFFEE = bin/coffee --js --bare
 #
 
 default: build
-
+default: xstore.js
+default: lib/index.js
 #
 # Clean.
 #
