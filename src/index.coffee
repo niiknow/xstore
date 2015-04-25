@@ -306,7 +306,7 @@
         return self
 
       self.proxyPage = options.url or self.proxyPage
-      if options.dntIgnore or typeof dnt is 'undefined' or (dnt is 'unspecified')
+      if options.dntIgnore or typeof dnt is 'undefined' or dnt is 'unspecified' or dnt is 'no' or dnt is '0'
         log("disable dnt")
         dnt = false
 

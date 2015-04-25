@@ -3,7 +3,7 @@
   "main": "lib/index.js",
   "repo": "niiknow/xstore",
   "description": "Cross domain storage",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "keywords": [
     "modal",
     "web"
