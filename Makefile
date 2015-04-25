@@ -70,7 +70,7 @@ test-browser: $(BUILD)
 #
 
 xstore.js: node_modules $(SRC)
-	@$(DUO) --use duo-coffee src/index.coffee > xstore.js
+	@$(DUO) --standalone xstore --use duo-coffee src/index.coffee > xstore.js
 	@$(MINIFY) xstore.js --output xstore.min.js
 
 #

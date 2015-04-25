@@ -4,8 +4,8 @@ All your bases are belong to us.  ;)
 xstore is a hack for high-performance, cross-domain data storage.  
 
 1. As a default behavior, xstore comply with brower's doNotTrack setting.  You can override this through xstore init parameter.  If doNotTrack is true, xstore fallback to store data in-memory.  This mean that it will still store data for SPA type of application.
-2. xstore uses localStorage and will fallback to cookie if localStorage is not enabled
-3. since xstore use localStorage and it is a global object, xstore is also a single/global object
+2. xstore uses localStorage and fallback to cookie if localStorage is not enabled
+3. even though xstore uses localStorage, it uses different iframe so data can be segmented between different xstore
 
 # usage
 No back-end is required.  Out of the box, you can simply reference xstore from (http(s)://niiknow.github.io/xstore/xstore.min.js) - thanks to Github.  xstore cross-domain proxy is provided @ http(s)://niiknow.github.io/xstore/xstore.html
@@ -14,7 +14,8 @@ Example:
 ```
 <script src="//niiknow.github.io/xstore/xstore.min.js"></script>
 <script>
-  xstore.init({dntIgnore: true}); // initialize xstore and ignore doNotTrack
+  store = new window.xstore()
+  store.init({dntIgnore: true}); // initialize xstore and ignore doNotTrack
 </script>
 ```
 
@@ -25,7 +26,8 @@ Example:
 ```
 <script>
   // initialize your xstore.html url
-  xstore.init({url: 'http://yourdomain.com/xstore.html'}); 
+  store = new window.xstore()
+  store.init({url: 'http://yourdomain.com/xstore.html'}); 
 </script>
 ```
 

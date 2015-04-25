@@ -9,6 +9,7 @@
     "web"
   ],
   "dependencies": {
+    "visionmedia/debug": "*",
     "component/cookie": "*",
     "segmentio/load-iframe": "*",
     "marcuswestin/store.js": "*"
