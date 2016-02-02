@@ -3,7 +3,7 @@
   "main": "lib/index.js",
   "repo": "niiknow/xstore",
   "description": "Cross domain storage",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "keywords": [
     "modal",
     "web"
@@ -11,7 +11,7 @@
   "dependencies": {
     "niiknow/debug": "*",
     "niiknow/store.js": "*",
-    "niiknow/load-iframe": "*",
+    "niiknow/load-iframe": "0.1.0",
     "component/cookie": "*"
   },
   "development": {
